@@ -1,12 +1,15 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, TransformControls, useCursor, Grid, Stage } from '@react-three/drei';
 import * as THREE from 'three';
 import { useBuilderStore } from '../../store/useBuilderStore';
+import { ParticleSystem } from '../effects/ParticleSystem';
+import { usePartAnimation } from '../../hooks/usePartAnimation';
 
 export const BuilderScene = () => {
     const { draggingPart, selectPart, setDraggingPart } = useBuilderStore();
     const [hovered, setHover] = useState(false);
+    const [justPlaced, setJustPlaced] = useState(false);
     useCursor(hovered);
 
     const planeRef = useRef<THREE.Mesh>(null);
@@ -36,6 +39,8 @@ export const BuilderScene = () => {
             // Place the part
             selectPart(draggingPart.type, draggingPart);
             setDraggingPart(null);
+            setJustPlaced(true);
+            setTimeout(() => setJustPlaced(false), 1000); // Reset trigger
         }
     };
 
@@ -72,7 +77,29 @@ export const BuilderScene = () => {
                 {/* Placed Parts (Placeholder visualization) */}
                 <PlacedParts />
             </Stage>
+
+            {/* Particle Feedback on Place */}
+            <ParticleSystem trigger={justPlaced} count={50} color="#FF0033" position={[0, 2, 0]} />
         </>
+    );
+};
+
+const PartMesh = ({ position, color, isSelected = true }: { position: [number, number, number], color: string, isSelected?: boolean }) => {
+    const meshRef = useRef<THREE.Mesh>(null);
+    const [hovered, setHover] = useState(false);
+
+    usePartAnimation(meshRef, isSelected, hovered);
+
+    return (
+        <mesh
+            ref={meshRef}
+            position={position}
+            onPointerOver={(e) => { e.stopPropagation(); setHover(true); }}
+            onPointerOut={() => setHover(false)}
+        >
+            <boxGeometry args={[0.5, 0.2, 1.5]} />
+            <meshStandardMaterial color={color} />
+        </mesh>
     );
 };
 
@@ -89,10 +116,7 @@ const PlacedParts = () => {
 
             {/* Visualize other parts based on selection */}
             {selectedParts.gpu && (
-                <mesh position={[0, 1, 0]}>
-                    <boxGeometry args={[0.5, 0.2, 1.5]} />
-                    <meshStandardMaterial color="#00FF00" />
-                </mesh>
+                <PartMesh position={[0, 1, 0]} color="#00FF00" />
             )}
         </group>
     );
