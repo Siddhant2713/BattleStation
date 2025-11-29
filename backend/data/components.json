@@ -1,0 +1,138 @@
+[
+    {
+        "id": "cpu-1",
+        "name": "Intel Core i9-14900K",
+        "type": "CPU",
+        "price": 589,
+        "specs": "24 Cores / 6.0 GHz",
+        "modelType": "box",
+        "color": "#0071c5",
+        "performanceScore": 100,
+        "power": 253
+    },
+    {
+        "id": "cpu-2",
+        "name": "AMD Ryzen 9 7950X3D",
+        "type": "CPU",
+        "price": 699,
+        "specs": "16 Cores / 5.7 GHz",
+        "modelType": "box",
+        "color": "#ed1c24",
+        "performanceScore": 98,
+        "power": 120
+    },
+    {
+        "id": "gpu-1",
+        "name": "NVIDIA GeForce RTX 4090",
+        "type": "GPU",
+        "price": 1599,
+        "specs": "24GB GDDR6X",
+        "modelType": "box",
+        "color": "#76b900",
+        "performanceScore": 100,
+        "power": 450
+    },
+    {
+        "id": "gpu-2",
+        "name": "ASUS ROG Strix RTX 4080",
+        "type": "GPU",
+        "price": 1199,
+        "specs": "16GB GDDR6X",
+        "modelType": "box",
+        "color": "#000000",
+        "performanceScore": 85,
+        "power": 320
+    },
+    {
+        "id": "case-1",
+        "name": "NZXT H9 Flow",
+        "type": "Case",
+        "price": 159,
+        "specs": "Dual Chamber Mid-Tower",
+        "modelType": "box",
+        "color": "#ffffff",
+        "performanceScore": 0,
+        "power": 0
+    },
+    {
+        "id": "case-2",
+        "name": "Hyte Y70 Touch",
+        "type": "Case",
+        "price": 359,
+        "specs": "4K Integrated Screen",
+        "modelType": "box",
+        "color": "#000000",
+        "performanceScore": 0,
+        "power": 5
+    },
+    {
+        "id": "ram-1",
+        "name": "G.SKILL Trident Z5 RGB",
+        "type": "RAM",
+        "price": 129,
+        "specs": "32GB (2x16GB) DDR5-6000",
+        "modelType": "flat",
+        "color": "#000000",
+        "performanceScore": 20,
+        "power": 10,
+        "rgb": true
+    },
+    {
+        "id": "ram-2",
+        "name": "Corsair Dominator Titanium",
+        "type": "RAM",
+        "price": 179,
+        "specs": "32GB (2x16GB) DDR5-7200",
+        "modelType": "flat",
+        "color": "#ffffff",
+        "performanceScore": 25,
+        "power": 12,
+        "rgb": true
+    },
+    {
+        "id": "fan-1",
+        "name": "Lian Li Uni Fan SL-INF",
+        "type": "Fan",
+        "price": 29,
+        "specs": "120mm Infinity Mirror",
+        "modelType": "cylinder",
+        "color": "#000000",
+        "performanceScore": 5,
+        "power": 3,
+        "rpm": 2100,
+        "rgb": true
+    },
+    {
+        "id": "psu-1",
+        "name": "Corsair RM1000x",
+        "type": "PSU",
+        "price": 189,
+        "specs": "1000W 80+ Gold",
+        "modelType": "box",
+        "color": "#000000",
+        "performanceScore": 0,
+        "power": 0
+    },
+    {
+        "id": "storage-1",
+        "name": "Samsung 990 PRO",
+        "type": "Storage",
+        "price": 169,
+        "specs": "2TB NVMe Gen4",
+        "modelType": "flat",
+        "color": "#000000",
+        "performanceScore": 10,
+        "power": 5
+    },
+    {
+        "id": "cooler-1",
+        "name": "NZXT Kraken Elite 360",
+        "type": "Cooling",
+        "price": 279,
+        "specs": "360mm AIO w/ LCD",
+        "modelType": "box",
+        "color": "#000000",
+        "performanceScore": 15,
+        "power": 15
+    }
+]
