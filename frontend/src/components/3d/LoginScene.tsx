@@ -1,58 +1,111 @@
-import React, { useRef } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Stars, Float, PerspectiveCamera } from '@react-three/drei';
+import { Stars, Float, PerspectiveCamera, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
 
+const NebulaShader = {
+    uniforms: {
+        uTime: { value: 0 },
+        uColor1: { value: new THREE.Color('#000000') },
+        uColor2: { value: new THREE.Color('#FF0033') },
+    },
+    vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `,
+    fragmentShader: `
+        uniform float uTime;
+        uniform vec3 uColor1;
+        uniform vec3 uColor2;
+        varying vec2 vUv;
+
+        // Simplex 2D noise
+        vec3 permute(vec3 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+        float snoise(vec2 v){
+            const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                    -0.577350269189626, 0.024390243902439);
+            vec2 i  = floor(v + dot(v, C.yy) );
+            vec2 x0 = v -   i + dot(i, C.xx);
+            vec2 i1;
+            i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+            vec4 x12 = x0.xyxy + C.xxzz;
+            x12.xy -= i1;
+            i = mod(i, 289.0);
+            vec3 p = permute( permute( i.y + vec3(0.0, i1.y, 1.0 ))
+            + i.x + vec3(0.0, i1.x, 1.0 ));
+            vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+            m = m*m ;
+            m = m*m ;
+            vec3 x = 2.0 * fract(p * C.www) - 1.0;
+            vec3 h = abs(x) - 0.5;
+            vec3 ox = floor(x + 0.5);
+            vec3 a0 = x - ox;
+            m *= 1.79284291400159 - 0.85373472095314 * ( a0*a0 + h*h );
+            vec3 g;
+            g.x  = a0.x  * x0.x  + h.x  * x0.y;
+            g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+            return 130.0 * dot(m, g);
+        }
+
+        void main() {
+            float noise = snoise(vUv * 3.0 + uTime * 0.1);
+            vec3 color = mix(uColor1, uColor2, noise * 0.5 + 0.2);
+            
+            // Vignette
+            float dist = distance(vUv, vec2(0.5));
+            color *= 1.0 - dist * 1.5;
+
+            gl_FragColor = vec4(color, 1.0);
+        }
+    `
+};
+
 export const LoginScene = () => {
-    const groupRef = useRef<THREE.Group>(null);
+    const meshRef = useRef<THREE.Mesh>(null);
+    const materialRef = useRef<THREE.ShaderMaterial>(null);
 
     useFrame((state) => {
-        if (groupRef.current) {
-            groupRef.current.rotation.y = state.clock.getElapsedTime() * 0.05;
-            groupRef.current.rotation.x = Math.sin(state.clock.getElapsedTime() * 0.1) * 0.1;
+        if (materialRef.current) {
+            materialRef.current.uniforms.uTime.value = state.clock.getElapsedTime();
         }
     });
 
     return (
         <>
-            <PerspectiveCamera makeDefault position={[0, 0, 10]} />
-            <color attach="background" args={['#050505']} />
+            <PerspectiveCamera makeDefault position={[0, 0, 5]} />
 
-            <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+            {/* Background Nebula */}
+            <mesh ref={meshRef} position={[0, 0, -10]} scale={[30, 15, 1]}>
+                <planeGeometry args={[1, 1, 32, 32]} />
+                <shaderMaterial
+                    ref={materialRef}
+                    args={[NebulaShader]}
+                    transparent
+                />
+            </mesh>
 
-            <group ref={groupRef}>
-                <Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
-                    <mesh position={[2, 1, -5]} rotation={[0, 0.5, 0]}>
-                        <icosahedronGeometry args={[1, 0]} />
-                        <meshStandardMaterial
-                            color="#FF0033"
-                            wireframe
-                            emissive="#FF0033"
-                            emissiveIntensity={2}
-                            transparent
-                            opacity={0.3}
-                        />
-                    </mesh>
-                </Float>
+            {/* Floating Particles */}
+            <Sparkles
+                count={200}
+                scale={10}
+                size={2}
+                speed={0.4}
+                opacity={0.5}
+                color="#FF0033"
+            />
+            <Sparkles
+                count={100}
+                scale={12}
+                size={4}
+                speed={0.2}
+                opacity={0.2}
+                color="#FFFFFF"
+            />
 
-                <Float speed={1.5} rotationIntensity={0.5} floatIntensity={0.5}>
-                    <mesh position={[-3, -2, -8]} rotation={[0.5, 0, 0]}>
-                        <octahedronGeometry args={[1.5, 0]} />
-                        <meshStandardMaterial
-                            color="#ffffff"
-                            wireframe
-                            emissive="#ffffff"
-                            emissiveIntensity={0.5}
-                            transparent
-                            opacity={0.1}
-                        />
-                    </mesh>
-                </Float>
-            </group>
-
-            <ambientLight intensity={0.5} />
-            <pointLight position={[10, 10, 10]} intensity={1} color="#FF0033" />
-            <pointLight position={[-10, -10, -10]} intensity={0.5} color="#0000FF" />
+            <ambientLight intensity={0.2} />
         </>
     );
 };

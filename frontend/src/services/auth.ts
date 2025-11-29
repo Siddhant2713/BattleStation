@@ -1,21 +1,11 @@
-const API_URL = 'http://localhost:5000/api/auth';
+import api from './api';
 
 export const login = async (username, password) => {
-    const response = await fetch(`${API_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-    });
-    if (!response.ok) throw new Error('Login failed');
-    return response.json();
+    const response = await api.post('/auth/login', { username, password });
+    return response.data;
 };
 
 export const signup = async (username, password) => {
-    const response = await fetch(`${API_URL}/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-    });
-    if (!response.ok) throw new Error('Signup failed');
-    return response.json();
+    const response = await api.post('/auth/signup', { username, password });
+    return response.data;
 };

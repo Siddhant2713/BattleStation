@@ -1,8 +1,19 @@
-const API_URL = 'http://localhost:5000/api';
+import axios from 'axios';
+import { useUserStore } from '../store/useUserStore';
 
-export const getComponents = async (category?: string) => {
-    const url = category ? `${API_URL}/components?category=${category}` : `${API_URL}/components`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Failed to fetch components');
-    return res.json();
-};
+const api = axios.create({
+    baseURL: 'http://localhost:5000/api',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
+api.interceptors.request.use((config) => {
+    const token = useUserStore.getState().token;
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+export default api;
