@@ -4,33 +4,33 @@ import * as THREE from 'three';
 import { RoundedBox } from '@react-three/drei';
 import { Motherboard, GPU, CPUCooler, RAMSticks, CaseFans } from './PCComponents';
 
-export const PCCase = () => {
+export const PCCase = ({ onFocus }: { onFocus?: (pos: THREE.Vector3) => void }) => {
     const [hovered, setHovered] = useState(false);
 
-    // Materials
-    const chassisMaterial = new THREE.MeshStandardMaterial({
+    // Materials - Memoized for performance
+    const chassisMaterial = React.useMemo(() => new THREE.MeshStandardMaterial({
         color: '#1a1a1a',
         metalness: 0.8,
         roughness: 0.2,
-    });
+    }), []);
 
-    const glassMaterial = new THREE.MeshPhysicalMaterial({
+    const glassMaterial = React.useMemo(() => new THREE.MeshPhysicalMaterial({
         color: '#ffffff',
         metalness: 0.1,
-        roughness: 0.05, // Smoother
-        transmission: 0.95, // More transparent
+        roughness: 0.05,
+        transmission: 0.95,
         thickness: 0.5,
         transparent: true,
         opacity: 0.3,
         clearcoat: 1,
         clearcoatRoughness: 0,
-    });
+    }), []);
 
-    const meshMaterial = new THREE.MeshStandardMaterial({
+    const meshMaterial = React.useMemo(() => new THREE.MeshStandardMaterial({
         color: '#000000',
         metalness: 0.5,
         roughness: 0.8,
-    });
+    }), []);
 
     const handleDoubleClick = (e: any) => {
         e.stopPropagation();
@@ -68,11 +68,11 @@ export const PCCase = () => {
 
             {/* Internal Components */}
             <group>
-                <Motherboard />
-                <GPU onFocus={(pos) => console.log("Focus GPU", pos)} />
-                <CPUCooler />
-                <RAMSticks />
-                <CaseFans />
+                <Motherboard onFocus={onFocus} />
+                <GPU onFocus={onFocus} />
+                <CPUCooler onFocus={onFocus} />
+                <RAMSticks onFocus={onFocus} />
+                <CaseFans onFocus={onFocus} />
             </group>
 
             {/* Feet */}
