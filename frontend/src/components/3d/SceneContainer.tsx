@@ -38,7 +38,7 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
                     <OrbitControls makeDefault />
 
                     {/* Post Processing */}
-                    <EffectComposer disableNormalPass>
+                    <EffectComposer enableNormalPass={false}>
                         <Bloom luminanceThreshold={1} mipmapBlur intensity={1.5} radius={0.4} />
                         <Noise opacity={0.02} />
                         <Vignette eskil={false} offset={0.1} darkness={1.1} />
