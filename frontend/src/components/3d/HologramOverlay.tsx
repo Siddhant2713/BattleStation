@@ -11,81 +11,75 @@ interface HologramOverlayProps {
 }
 
 export const HologramOverlay = ({ visible, label, stats = [], position = [0, 0, 0] }: HologramOverlayProps) => {
-    const ringRef = useRef<THREE.Mesh>(null);
-    const innerRingRef = useRef<THREE.Mesh>(null);
-
-    useFrame((state, delta) => {
-        if (visible && ringRef.current && innerRingRef.current) {
-            ringRef.current.rotation.z += delta * 0.5;
-            innerRingRef.current.rotation.z -= delta * 1;
-        }
-    });
-
     if (!visible) return null;
 
     return (
         <group position={position}>
-            {/* Rotating Rings */}
-            <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[1.2, 1.25, 32]} />
-                <meshBasicMaterial color="#00FFFF" transparent opacity={0.4} side={THREE.DoubleSide} />
-            </mesh>
-            <mesh ref={innerRingRef} rotation={[Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[0.8, 0.82, 32]} />
-                <meshBasicMaterial color="#00FFFF" transparent opacity={0.2} side={THREE.DoubleSide} />
-            </mesh>
-
-            {/* Connecting Line */}
+            {/* Connecting Line (Thin & Sharp) */}
             <mesh position={[1.5, 0.5, 0]}>
-                <boxGeometry args={[1, 0.02, 0.02]} />
-                <meshBasicMaterial color="#00FFFF" transparent opacity={0.5} />
+                <boxGeometry args={[1, 0.01, 0.01]} />
+                <meshBasicMaterial color="#00FFFF" transparent opacity={0.8} />
             </mesh>
 
             {/* Info Panel (Billboard to face camera) */}
             <Billboard position={[2.5, 1, 0]} follow={true} lockX={false} lockY={false} lockZ={false}>
                 <group>
-                    {/* Background Panel */}
+                    {/* Glass Panel Background */}
                     <mesh position={[0, -0.5, 0]}>
-                        <planeGeometry args={[2, 1.5]} />
-                        <meshBasicMaterial color="#000000" transparent opacity={0.6} />
+                        <planeGeometry args={[2.2, 1.6]} />
+                        <meshBasicMaterial color="#000000" transparent opacity={0.8} side={THREE.DoubleSide} />
                     </mesh>
-                    {/* Border */}
-                    <mesh position={[-1, -0.5, 0]}>
-                        <boxGeometry args={[0.05, 1.5, 0.01]} />
+
+                    {/* Thin Cyan Border */}
+                    <mesh position={[0, -0.5, 0]}>
+                        <boxGeometry args={[2.22, 1.62, 0.001]} />
+                        <meshBasicMaterial color="#00FFFF" transparent opacity={0.3} wireframe />
+                    </mesh>
+
+                    {/* Header Bar */}
+                    <mesh position={[0, 0.2, 0.01]}>
+                        <planeGeometry args={[2, 0.02]} />
                         <meshBasicMaterial color="#00FFFF" />
                     </mesh>
 
                     {/* Text Content */}
                     <Text
-                        position={[-0.8, 0, 0.01]}
-                        fontSize={0.2}
+                        position={[-0.9, 0, 0.02]}
+                        fontSize={0.18}
                         color="#ffffff"
                         anchorX="left"
                         anchorY="middle"
-                        font="https://fonts.gstatic.com/s/sharetechmono/v15/J7aHnp1uDWRRFmbURQJxsGH5yRCg.woff" // Web font URL or local
+                        font="https://fonts.gstatic.com/s/sharetechmono/v15/J7aHnp1uDWRRFmbURQJxsGH5yRCg.woff"
                     >
                         {label}
                     </Text>
 
                     {stats.map((stat, i) => (
-                        <group key={i} position={[-0.8, -0.3 - (i * 0.2), 0.01]}>
+                        <group key={i} position={[-0.9, -0.3 - (i * 0.25), 0.02]}>
                             <Text
-                                fontSize={0.1}
+                                fontSize={0.12}
                                 color="#aaaaaa"
                                 anchorX="left"
                                 anchorY="middle"
+                                font="https://fonts.gstatic.com/s/sharetechmono/v15/J7aHnp1uDWRRFmbURQJxsGH5yRCg.woff"
                             >
                                 {stat.label}
                             </Text>
                             <Text
-                                position={[1.5, 0, 0]}
-                                fontSize={0.1}
+                                position={[1.8, 0, 0]}
+                                fontSize={0.12}
                                 color="#00FFFF"
                                 anchorX="right"
                                 anchorY="middle"
+                                font="https://fonts.gstatic.com/s/sharetechmono/v15/J7aHnp1uDWRRFmbURQJxsGH5yRCg.woff"
                             >
                                 {stat.value}
                             </Text>
+                            {/* Separator Line */}
+                            <mesh position={[0.9, -0.12, 0]}>
+                                <planeGeometry args={[1.8, 0.005]} />
+                                <meshBasicMaterial color="#00FFFF" transparent opacity={0.2} />
+                            </mesh>
                         </group>
                     ))}
                 </group>

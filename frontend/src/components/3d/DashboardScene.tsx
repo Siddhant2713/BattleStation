@@ -4,44 +4,80 @@ import { Environment, CameraControls, ContactShadows, Float, SpotLight } from '@
 import { EffectComposer, Bloom, Vignette, Noise, DepthOfField } from '@react-three/postprocessing';
 import { PCCase } from '../pc/PCCase';
 import { LabEnvironment } from './LabEnvironment';
-import { RoboticArm } from './RoboticArm';
+
 import { CorePedestal } from './CorePedestal';
 import { HologramOverlay } from './HologramOverlay';
 import * as THREE from 'three';
+
 import { gsap } from 'gsap';
 
 export const DashboardScene = () => {
     const cameraControlsRef = useRef<CameraControls>(null);
     const pedestalRef = useRef<THREE.Group>(null);
     const spotLightRef = useRef<THREE.SpotLight>(null);
+    const pcGroupRef = useRef<THREE.Group>(null); // Ref for rotation
     const [introFinished, setIntroFinished] = useState(false);
     const [isInteracting, setIsInteracting] = useState(false);
     const [temperature, setTemperature] = useState(45);
 
-    // Cinematic Intro V2
+    // Cinematic Intro V2 (Clean & Smooth)
     useEffect(() => {
         if (cameraControlsRef.current && pedestalRef.current && spotLightRef.current) {
             // Initial State
-            cameraControlsRef.current.setPosition(0, 5, 50, false); // Far back
+            cameraControlsRef.current.setPosition(0, 5, 40, false);
             cameraControlsRef.current.setTarget(0, 0, 0, false);
-            pedestalRef.current.position.y = -15; // Deep underground
-            spotLightRef.current.intensity = 10; // Start DIM, not pitch black
+            pedestalRef.current.position.y = -10;
+            spotLightRef.current.intensity = 0;
 
             const tl = gsap.timeline({ onComplete: () => setIntroFinished(true) });
 
-            tl.to({}, { duration: 1 }) // Silence
-                // 1. Vault Door "Opens" (Simulated by light/fog shift)
-                .to({}, { duration: 1 })
-                // 2. Pedestal Rises with heavy mechanical ease
-                .to(pedestalRef.current.position, { y: 0, duration: 4, ease: "power2.inOut" })
-                // 3. Main Spotlights Ignite
-                .to(spotLightRef.current, { intensity: 200, duration: 0.5, ease: "bounce.out" }, "-=1")
-                // 4. Camera Swoop
-                .call(() => {
-                    cameraControlsRef.current?.setLookAt(0, 3, 14, 0, 1, 0, true);
-                }, [], "-=0.5");
+            tl.to({}, { duration: 0.5 })
+                // 1. Pedestal Rises smoothly
+                .to(pedestalRef.current.position, { y: 0, duration: 3, ease: "power3.out" })
+                // 2. Lights On
+                .to(spotLightRef.current, { intensity: 400, duration: 1, ease: "power2.out" }, "-=2")
+                // 3. Spiral Camera Move (Zoom + Rotate)
+                .to({}, {
+                    duration: 4,
+                    ease: "power2.inOut",
+                    onUpdate: function () {
+                        const progress = this.progress(); // 0 to 1
+                        if (cameraControlsRef.current) {
+                            // Interpolate values
+                            const startRadius = 40;
+                            const endRadius = 11;
+                            const currentRadius = startRadius + (endRadius - startRadius) * progress;
+
+                            const startY = 5;
+                            const endY = 4; // Higher end position to look from above
+                            const currentY = startY + (endY - startY) * progress;
+
+                            const startTargetY = 0;
+                            const endTargetY = 1.2;
+                            const currentTargetY = startTargetY + (endTargetY - startTargetY) * progress;
+
+                            // Calculate spiral position
+                            // Start at angle 0 (Front) -> End at angle 2PI + PI/4 (45 deg angle)
+                            const totalRotation = Math.PI * 2 + Math.PI / 4;
+                            const angle = progress * totalRotation;
+
+                            const x = Math.sin(angle) * currentRadius;
+                            const z = Math.cos(angle) * currentRadius;
+
+                            // Update Camera
+                            cameraControlsRef.current.setLookAt(x, currentY, z, 0, currentTargetY, 0, false);
+                        }
+                    }
+                }, "-=1");
         }
     }, []);
+
+    // Slow Rotation Removed
+    // useFrame((state, delta) => {
+    //     if (pcGroupRef.current && !isInteracting) {
+    //         pcGroupRef.current.rotation.y += delta * 0.05; // Very slow rotation (approx 0.5 RPM)
+    //     }
+    // });
 
     // Mock Temperature
     useEffect(() => {
@@ -64,7 +100,8 @@ export const DashboardScene = () => {
 
     const isCritical = temperature > 80;
     const isWarning = temperature > 60;
-    const baseColor = isCritical ? "#FF0000" : (isWarning ? "#FF4400" : "#00FFFF");
+    // Accent color logic
+    const accentColor = isCritical ? "#FF0000" : (isWarning ? "#FF4400" : "#00FFFF");
 
     return (
         <>
@@ -78,53 +115,45 @@ export const DashboardScene = () => {
                 draggingSmoothTime={0.2}
             />
 
-            <Environment preset="city" background={false} blur={0.8} />
+            {/* --- ENVIRONMENT & LIGHTING --- */}
+            <Environment preset="studio" background={false} blur={1} />
+            <color attach="background" args={['#050505']} />
+
             <LabEnvironment />
 
-            {/* --- ATMOSPHERE --- */}
-            {/* Layered Fog for Depth - REDUCED DENSITY for Clarity */}
-            <fogExp2 attach="fog" args={[isCritical ? '#1a0000' : '#020202', 0.005]} />
-            <ambientLight intensity={0.2} color={baseColor} />
+            {/* Soft Global Illumination (Boosted for White Theme) */}
+            <ambientLight intensity={0.8} color="#ffffff" />
 
-            {/* --- CINEMATIC LIGHTING --- */}
-            {/* Hero Spotlight (Volumetric feel) */}
+            {/* Hero Spotlight (Clean White & Sharp Shadows) */}
             <SpotLight
                 ref={spotLightRef}
-                position={[0, 20, 5]}
-                angle={0.3}
-                penumbra={0.5}
-                intensity={10} // Start DIM
-                color={isCritical ? "#FF0000" : "#ffffff"}
-                castShadow
-                shadow-mapSize={[2048, 2048]}
-                shadow-bias={-0.0001}
-                distance={50}
-                attenuation={5}
-                anglePower={5}
-            />
-
-            {/* Rim Lights for Silhouette */}
-            <pointLight position={[-10, 5, -5]} intensity={20} color={baseColor} distance={20} />
-            <pointLight position={[10, 5, -5]} intensity={20} color="#0044ff" distance={20} />
-
-            {/* Fill Light */}
-            <rectAreaLight
-                width={10}
-                height={10}
+                position={[0, 15, 5]}
+                angle={0.4}
+                penumbra={0.2}
+                intensity={400}
                 color="#ffffff"
-                intensity={2}
-                position={[0, 10, 10]}
-                lookAt={() => new THREE.Vector3(0, 0, 0)}
+                castShadow
+                shadow-mapSize={[4096, 4096]} // High Res Shadows
+                shadow-bias={-0.00005}
             />
+
+            {/* Rim Lights for Definition */}
+            <pointLight position={[-10, 5, -5]} intensity={15} color="#ffffff" distance={20} />
+            <pointLight position={[10, 5, -5]} intensity={15} color="#ffffff" distance={20} />
 
             {/* --- ACTORS --- */}
-            <RoboticArm position={[-12, 0, -5]} isScanning={isCritical} />
-            <RoboticArm position={[12, 0, -5]} isScanning={isCritical} />
+            {/* Robotic Arms Removed */}
 
             <group ref={pedestalRef}>
                 <CorePedestal />
-                <Float speed={2} rotationIntensity={0.1} floatIntensity={0.2} floatingRange={[0.1, 0.3]}>
-                    <group position={[0, 1.2, 0]} scale={0.7} onClick={() => setIsInteracting(true)}>
+                {/* Reduced Levitation Height & Range */}
+                <Float speed={2} rotationIntensity={0} floatIntensity={0.5} floatingRange={[0.05, 0.1]}>
+                    <group
+                        ref={pcGroupRef}
+                        position={[0, 0.8, 0]} // Lowered starting position (was 1.2)
+                        scale={0.7}
+                        onClick={() => setIsInteracting(true)}
+                    >
                         <PCCase onFocus={handleFocus} />
                         <HologramOverlay
                             visible={isInteracting || isWarning}
@@ -139,14 +168,15 @@ export const DashboardScene = () => {
                 </Float>
             </group>
 
-            {/* --- POST PROCESSING --- */}
+            {/* --- POST PROCESSING (Ultra Sharp) --- */}
             <EffectComposer>
-                {/* Reduced Bloom for cleaner look */}
-                <Bloom luminanceThreshold={1} mipmapBlur intensity={0.5} radius={0.4} />
-                {/* Reduced Noise for clarity */}
-                <Noise opacity={0.02} />
-                <Vignette eskil={false} offset={0.1} darkness={1.1} />
-                {/* REMOVED DepthOfField for sharpness */}
+                {/* Subtle Bloom for lights only */}
+                <Bloom luminanceThreshold={1.5} mipmapBlur intensity={0.3} radius={0.2} />
+                {/* Minimal Noise for realism, barely visible */}
+                <Noise opacity={0.005} />
+                {/* Vignette to focus eyes */}
+                <Vignette eskil={false} offset={0.1} darkness={0.6} />
+                {/* No DepthOfField for maximum clarity */}
             </EffectComposer>
         </>
     );
