@@ -7,7 +7,7 @@ import { LoginForm } from '../components/login/LoginForm';
 
 export const Login = () => {
     return (
-        <div className="relative w-full h-screen bg-black overflow-hidden">
+        <div className="relative w-full h-screen bg-black overflow-hidden" style={{ height: '100vh' }}>
             {/* 3D Background Layer */}
             <div className="absolute inset-0 z-0">
                 <Canvas camera={{ position: [0, 0, 5], fov: 45 }}>

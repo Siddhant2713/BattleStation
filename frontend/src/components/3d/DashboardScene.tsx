@@ -1,48 +1,61 @@
-import React, { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Float, Stage, PresentationControls } from '@react-three/drei';
-import * as THREE from 'three';
+import React, { Suspense } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { Environment, CameraControls, ContactShadows } from '@react-three/drei';
+import { EffectComposer, Bloom, Vignette, Noise } from '@react-three/postprocessing';
+import { PCCase } from '../pc/PCCase';
 
 export const DashboardScene = () => {
-    const meshRef = useRef<THREE.Group>(null);
-
-    useFrame((state) => {
-        if (meshRef.current) {
-            meshRef.current.rotation.y += 0.005;
-        }
-    });
-
     return (
         <>
-            <PresentationControls speed={1.5} global zoom={0.7} polar={[-0.1, Math.PI / 4]}>
-                <Stage environment="city" intensity={0.6} castShadow={false}>
-                    <group ref={meshRef}>
-                        {/* PC Case Placeholder */}
-                        <mesh position={[0, 1, 0]}>
-                            <boxGeometry args={[2, 4, 4]} />
-                            <meshStandardMaterial
-                                color="#1a1a1a"
-                                roughness={0.2}
-                                metalness={0.8}
-                            />
-                        </mesh>
-                        {/* Glass Panel */}
-                        <mesh position={[1.01, 1, 0]}>
-                            <planeGeometry args={[0, 3.8, 3.8]} />
-                            <meshPhysicalMaterial
-                                color="#ffffff"
-                                transmission={0.9}
-                                opacity={0.5}
-                                transparent
-                                roughness={0}
-                                ior={1.5}
-                            />
-                        </mesh>
-                        {/* Internal RGB Glow */}
-                        <pointLight position={[0, 1, 0]} color="#FF0033" intensity={2} distance={5} />
-                    </group>
-                </Stage>
-            </PresentationControls>
+            {/* Camera Rig - Unlocked 360, Smooth, Collision Safe */}
+            <CameraControls
+                minPolarAngle={0}
+                maxPolarAngle={Math.PI / 1.5} // Prevent going too far below
+                minDistance={4}
+                maxDistance={12}
+                smoothTime={0.4}
+                draggingSmoothTime={0.2}
+                truckSpeed={0} // Disable panning for now to keep focus on center
+            />
+
+            {/* Lighting & Environment */}
+            <Environment preset="city" background={false} blur={0.8} />
+            <ambientLight intensity={0.3} />
+
+            {/* Key Light */}
+            <spotLight
+                position={[10, 10, 10]}
+                angle={0.15}
+                penumbra={1}
+                intensity={80}
+                castShadow
+            />
+            {/* Rim Light */}
+            <pointLight position={[-10, 5, -10]} intensity={40} color="#FF003C" />
+
+            {/* Interior Fill Lights for Visibility */}
+            <pointLight position={[0, 2, 0]} intensity={5} distance={3} color="#ffffff" />
+
+            {/* Main PC Case Model - Scaled Down */}
+            <Suspense fallback={null}>
+                <group position={[0, -1.5, 0]} scale={0.7}>
+                    <PCCase />
+                    <ContactShadows
+                        position={[0, -0.01, 0]}
+                        opacity={0.6}
+                        scale={10}
+                        blur={2}
+                        far={4}
+                    />
+                </group>
+            </Suspense>
+
+            {/* Post Processing */}
+            <EffectComposer>
+                <Bloom luminanceThreshold={1} mipmapBlur intensity={1.2} radius={0.6} />
+                <Noise opacity={0.05} />
+                <Vignette eskil={false} offset={0.1} darkness={1.0} />
+            </EffectComposer>
         </>
     );
 };
