@@ -19,14 +19,15 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     return (
         <div className={className}>
             <Canvas
-                shadows={false} // Disable default heavy shadow maps
+                shadows={false}
                 dpr={dpr}
                 camera={{ position: cameraPosition, fov: 45 }}
                 gl={{
-                    antialias: false, // Post-processing handles AA or we rely on DPR
+                    antialias: false,
                     powerPreference: "high-performance",
                     stencil: false,
-                    depth: true
+                    depth: true,
+                    alpha: false // Optimization: Disable alpha buffer if not needed
                 }}
             >
                 {/* Dynamic Resolution Scaling */}
@@ -38,17 +39,16 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
                 />
 
                 <Suspense fallback={null}>
-                    {/* Efficient Lighting Setup */}
-                    <ambientLight intensity={0.4} color="#0B0C10" />
+                    {/* Efficient Lighting Setup: 2 Dynamic Lights Max + Environment */}
 
-                    {/* Key Light - Static if possible, or minimal shadow map */}
+                    {/* Key Light */}
                     <spotLight
                         position={[10, 10, 10]}
                         angle={0.3}
                         penumbra={1}
                         intensity={2}
                         color="#C5C6C7"
-                        castShadow={false} // Disable expensive dynamic shadows
+                        castShadow={false}
                     />
 
                     {/* Rim Light */}
@@ -61,35 +61,34 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
                         castShadow={false}
                     />
 
-                    {/* Fill Light */}
-                    <pointLight position={[-10, -5, 5]} intensity={0.5} color="#45A29E" />
-
-                    {/* Environment - Low Res for lighting */}
+                    {/* Ambient Fill via Environment */}
                     <Environment preset="city" environmentIntensity={0.5} resolution={256} />
 
                     {/* Content */}
                     {children}
 
-                    {/* Baked-like Soft Shadows */}
+                    {/* Baked-like Soft Shadows - Single Instance */}
                     <ContactShadows
                         position={[0, -4, 0]}
                         opacity={0.6}
                         scale={20}
                         blur={2}
                         far={4.5}
+                        resolution={256} // Lower resolution for performance
+                        frames={1} // Bake once
                     />
 
                     {/* Controls */}
                     <CameraControls makeDefault minDistance={2} maxDistance={20} smoothTime={0.25} />
 
-                    {/* Optimized Post Processing */}
-                    <EffectComposer>
+                    {/* Optimized Post Processing - Bloom Only */}
+                    <EffectComposer enableNormalPass={false}>
                         <Bloom
-                            luminanceThreshold={1.2} // Only very bright things glow
+                            luminanceThreshold={1.2}
                             mipmapBlur
                             intensity={0.8}
                             radius={0.4}
-                            levels={4} // Reduce levels for performance
+                            levels={4}
                         />
                     </EffectComposer>
 

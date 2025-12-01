@@ -1,13 +1,13 @@
-import React, { useRef, useState, useMemo, useEffect } from 'react';
-// Re-indexing trigger
+import React, { useRef, useState, useMemo } from 'react';
 import { useFrame, extend } from '@react-three/fiber';
-import { RoundedBox, Cylinder, useCursor, Tube, Extrude, Instance, Instances, shaderMaterial, Detailed } from '@react-three/drei';
+import { RoundedBox, Tube, Instances, Instance, shaderMaterial, Detailed, useTexture, Cylinder } from '@react-three/drei';
 import * as THREE from 'three';
 
-// --- Custom Shaders ---
+// --- Optimized Shaders ---
 
-const CoolantMaterial = shaderMaterial(
-    { time: 0, color: new THREE.Color(1.0, 0.2, 0.0), speed: 1.0 },
+// 1. Ultra-lightweight Coolant Shader (UV Scroll only)
+export const CoolantMaterial = shaderMaterial(
+    { time: 0, color: new THREE.Color(1.0, 0.2, 0.0) },
     `
     varying vec2 vUv;
     void main() {
@@ -18,33 +18,61 @@ const CoolantMaterial = shaderMaterial(
     `
     uniform float time;
     uniform vec3 color;
-    uniform float speed;
     varying vec2 vUv;
     void main() {
-      float flow = sin(vUv.x * 10.0 - time * speed * 3.0);
-      vec3 finalColor = mix(color, vec3(1.0, 0.5, 0.0), flow * 0.2);
+      // Simple UV scroll for flow effect
+      float flow = step(0.5, fract(vUv.x * 4.0 - time * 2.0)); 
+      vec3 finalColor = mix(color, color * 1.5, flow * 0.3);
       gl_FragColor = vec4(finalColor, 0.8);
     }
     `
 );
 
-extend({ CoolantMaterial });
+// 2. Vertex-Rotation Shader for Fans (No CPU overhead)
+export const FanMaterial = shaderMaterial(
+    { time: 0, color: new THREE.Color(1.0, 1.0, 1.0), speed: 10.0 },
+    `
+    uniform float time;
+    uniform float speed;
+    varying vec2 vUv;
+    
+    void main() {
+      vUv = uv;
+      vec3 pos = position;
+      
+      // Rotate around Z axis
+      float angle = time * speed;
+      float s = sin(angle);
+      float c = cos(angle);
+      
+      // Rotate only if not center hub (approximate by distance)
+      if (length(pos.xy) > 0.2) {
+          float x = pos.x * c - pos.y * s;
+          float y = pos.x * s + pos.y * c;
+          pos.x = x;
+          pos.y = y;
+      }
+      
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+    }
+    `,
+    `
+    uniform vec3 color;
+    varying vec2 vUv;
+    void main() {
+      gl_FragColor = vec4(color, 0.8); // Semi-transparent blades
+    }
+    `
+);
 
-// --- Materials ---
+extend({ CoolantMaterial, FanMaterial });
+
+// --- Shared Materials (Instanced where possible) ---
 const materials = {
     matteBlack: new THREE.MeshStandardMaterial({ color: '#111', roughness: 0.8, metalness: 0.2 }),
     glossyBlack: new THREE.MeshStandardMaterial({ color: '#050505', roughness: 0.2, metalness: 0.8 }),
     chrome: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, metalness: 1.0 }),
     pcb: new THREE.MeshStandardMaterial({ color: '#050505', roughness: 0.8, metalness: 0.1 }),
-    fanBlade: new THREE.MeshPhysicalMaterial({
-        color: '#ffffff',
-        metalness: 0.1,
-        roughness: 0.1,
-        transmission: 0.6,
-        thickness: 0.1,
-        transparent: true,
-        opacity: 0.5,
-    }),
     ledOrange: new THREE.MeshBasicMaterial({ color: '#ff3c00' }),
     copper: new THREE.MeshStandardMaterial({ color: '#b87333', roughness: 0.4, metalness: 0.8 }),
     aluminum: new THREE.MeshStandardMaterial({ color: '#aaaaaa', roughness: 0.5, metalness: 0.9 }),
@@ -54,61 +82,41 @@ const materials = {
 
 // --- Reusable Components ---
 
-export const Fan = ({ position, rotation, scale = 1, color = "#ff3c00", rpm = 1000, size = 1.2, temp = 40 }: any) => {
-    const fanRef = useRef<THREE.Group>(null);
-    const [currentRpm, setCurrentRpm] = useState(0);
+export const Fan = ({ position, rotation, scale = 1, color = "#ff3c00", rpm = 1000, size = 1.2 }: any) => {
+    const matRef = useRef<any>(null);
 
-    useFrame((_, delta) => {
-        const targetRpm = THREE.MathUtils.mapLinear(temp, 30, 80, 800, 2500);
-        const newRpm = THREE.MathUtils.lerp(currentRpm, targetRpm, delta * 2);
-        setCurrentRpm(newRpm);
-
-        if (fanRef.current) {
-            fanRef.current.rotation.z -= delta * (newRpm / 60);
+    useFrame((state) => {
+        if (matRef.current) {
+            matRef.current.time = state.clock.elapsedTime;
+            // Map RPM to speed multiplier roughly
+            matRef.current.speed = rpm * 0.01;
         }
     });
 
-    const blurOpacity = THREE.MathUtils.mapLinear(currentRpm, 800, 2500, 0, 0.8);
-
     return (
         <group position={position} rotation={rotation} scale={scale}>
-            <group>
-                <mesh rotation={[Math.PI / 2, 0, 0]}>
-                    <torusGeometry args={[size / 2, 0.05, 8, 24]} />
-                    <primitive object={materials.matteBlack} attach="material" />
-                </mesh>
-                {[1, -1].map(x => [1, -1].map(y => (
-                    <mesh key={`${x}-${y}`} position={[x * (size / 2 - 0.1), y * (size / 2 - 0.1), 0]}>
-                        <boxGeometry args={[0.2, 0.2, 0.15]} />
-                        <primitive object={materials.matteBlack} attach="material" />
-                    </mesh>
-                )))}
-            </group>
+            {/* Frame */}
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[size / 2, 0.05, 8, 12]} />
+                <primitive object={materials.matteBlack} attach="material" />
+            </mesh>
 
-            <group ref={fanRef}>
-                <mesh rotation={[Math.PI / 2, 0, 0]}>
-                    <cylinderGeometry args={[0.15, 0.15, 0.1, 16]} />
-                    <primitive object={materials.glossyBlack} attach="material" />
-                </mesh>
-                {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-                    <mesh key={i} rotation={[0, 0, (i / 7) * Math.PI * 2]} position={[0, 0, 0]}>
-                        <group rotation={[0.2, 0, 0]} position={[0, 0.25, 0]}>
-                            <boxGeometry args={[0.12, 0.55, 0.01]} />
-                            <primitive object={materials.fanBlade} attach="material" />
-                        </group>
-                    </mesh>
-                ))}
-            </group>
+            {/* Blades (Single Mesh with Vertex Shader Rotation) */}
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[size / 2 - 0.05, size / 2 - 0.05, 0.05, 8, 1, true]} />
+                {/* @ts-ignore */}
+                <fanMaterial ref={matRef} transparent color="white" />
+            </mesh>
 
-            {blurOpacity > 0.1 && (
-                <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.01]}>
-                    <circleGeometry args={[size / 2 - 0.05, 16]} />
-                    <meshBasicMaterial color="#333" transparent opacity={blurOpacity * 0.3} depthWrite={false} />
-                </mesh>
-            )}
+            {/* Center Hub */}
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+                <cylinderGeometry args={[0.15, 0.15, 0.1, 12]} />
+                <primitive object={materials.glossyBlack} attach="material" />
+            </mesh>
 
+            {/* RGB Ring */}
             <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.02]}>
-                <torusGeometry args={[size / 2 - 0.08, 0.02, 8, 32]} />
+                <torusGeometry args={[size / 2 - 0.08, 0.02, 8, 12]} />
                 <meshBasicMaterial color={color} toneMapped={false} />
             </mesh>
         </group>
@@ -117,8 +125,6 @@ export const Fan = ({ position, rotation, scale = 1, color = "#ff3c00", rpm = 10
 
 const InteractivePart = ({ children, onFocus, ...props }: any) => {
     const groupRef = useRef<THREE.Group>(null);
-    const [hovered, setHovered] = useState(false);
-    useCursor(hovered);
 
     const handleDoubleClick = (e: any) => {
         e.stopPropagation();
@@ -132,44 +138,24 @@ const InteractivePart = ({ children, onFocus, ...props }: any) => {
     return (
         <group
             ref={groupRef}
-            onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-            onPointerOut={() => setHovered(false)}
             onDoubleClick={handleDoubleClick}
             {...props}
         >
-            <group>
-                {React.Children.map(children, child => {
-                    if (React.isValidElement(child)) {
-                        return React.cloneElement(child, { hovered } as any);
-                    }
-                    return child;
-                })}
-            </group>
+            {children}
         </group>
     );
 };
 
 // --- Main Components ---
 
-// ATX Dimensions: 305mm x 244mm -> 3.05 x 2.44 units
 export const Motherboard = ({ onFocus, temp = 40, load = 0 }: any) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        if (groupRef.current && load > 0.5) {
-            const vibration = Math.sin(state.clock.elapsedTime * 500) * 0.0005 * load;
-            groupRef.current.position.x = vibration;
-        }
-    });
-
     return (
         <InteractivePart onFocus={onFocus} position={[0, 0, 0]}>
-            <group ref={groupRef}>
-                <Detailed distances={[0, 10, 20]}>
-                    <MotherboardLOD0 hovered={false} />
-                    <MotherboardLOD1 hovered={false} />
-                    <MotherboardLOD2 hovered={false} />
-                </Detailed>
-            </group>
+            <Detailed distances={[0, 15, 30]}>
+                <MotherboardLOD0 hovered={false} />
+                <MotherboardLOD1 hovered={false} />
+                <MotherboardLOD2 hovered={false} />
+            </Detailed>
         </InteractivePart>
     );
 };
@@ -182,22 +168,28 @@ const MotherboardLOD0 = ({ hovered }: any) => (
             {hovered && <meshStandardMaterial color="#222" emissive="#111" />}
         </RoundedBox>
 
-        {/* VRM Heatsinks (Top and Left) */}
+        {/* VRM Heatsinks (Aggressive Style) */}
         <group position={[-0.8, 1.0, 0.05]}>
-            {/* Left Heatsink */}
-            <RoundedBox args={[0.5, 1.8, 0.15]} position={[-0.2, -0.2, 0]} radius={0.02}>
+            {/* Left Heatsink - Angled */}
+            <mesh position={[-0.2, -0.2, 0]} rotation={[0, 0, 0.1]}>
+                <boxGeometry args={[0.6, 1.8, 0.2]} />
                 <primitive object={materials.matteBlack} attach="material" />
-            </RoundedBox>
-            {/* I/O Shroud */}
-            <RoundedBox args={[0.6, 1.8, 0.25]} position={[-0.3, -0.2, 0.05]} radius={0.05}>
+            </mesh>
+            {/* I/O Shroud with Logo Area */}
+            <RoundedBox args={[0.7, 1.9, 0.3]} position={[-0.35, -0.2, 0.05]} radius={0.05}>
                 <primitive object={materials.glossyBlack} attach="material" />
+                <mesh position={[-0.36, 0.5, 0]} rotation={[0, -Math.PI / 2, 0]}>
+                    <planeGeometry args={[0.2, 0.8]} />
+                    <meshBasicMaterial color="#ff3c00" />
+                </mesh>
             </RoundedBox>
         </group>
 
         {/* Top Heatsink */}
-        <RoundedBox args={[1.8, 0.5, 0.15]} position={[0.2, 1.3, 0.05]} radius={0.02}>
+        <mesh position={[0.2, 1.35, 0.05]} rotation={[0, 0, -0.05]}>
+            <boxGeometry args={[1.8, 0.6, 0.2]} />
             <primitive object={materials.matteBlack} attach="material" />
-        </RoundedBox>
+        </mesh>
 
         {/* CPU Socket Area (Center Top) */}
         <mesh position={[0.2, 0.8, 0.03]}>
@@ -215,16 +207,16 @@ const MotherboardLOD0 = ({ hovered }: any) => (
             ))}
         </group>
 
-        {/* PCIe Slots (Bottom Half) */}
+        {/* PCIe Slots (Reinforced) */}
         <group position={[0, -0.5, 0.05]}>
             {[0, 1, 2].map((i) => (
-                <group key={i} position={[0, i * -0.6, 0]}>
+                <group key={i} position={[0, i * -0.8, 0]}>
                     <mesh>
-                        <boxGeometry args={[1.8, 0.08, 0.04]} />
+                        <boxGeometry args={[1.8, 0.1, 0.06]} />
                         <primitive object={materials.glossyBlack} attach="material" />
                     </mesh>
                     <mesh position={[0, 0, 0.01]}>
-                        <boxGeometry args={[1.82, 0.1, 0.01]} />
+                        <boxGeometry args={[1.82, 0.12, 0.02]} />
                         <primitive object={materials.chrome} attach="material" />
                     </mesh>
                 </group>
@@ -233,20 +225,25 @@ const MotherboardLOD0 = ({ hovered }: any) => (
 
         {/* Chipset Heatsink (Bottom Right) */}
         <group position={[0.6, -1.0, 0.05]}>
-            <boxGeometry args={[0.8, 0.8, 0.04]} />
+            <boxGeometry args={[1.0, 0.8, 0.05]} />
             <primitive object={materials.matteBlack} attach="material" />
             <mesh position={[0, 0, 0.03]}>
-                <planeGeometry args={[0.6, 0.6]} />
+                <planeGeometry args={[0.8, 0.6]} />
                 <meshBasicMaterial color="#ff3c00" transparent opacity={0.8} />
+            </mesh>
+            {/* M.2 Shield */}
+            <mesh position={[0, 0.6, 0.02]}>
+                <boxGeometry args={[1.0, 0.3, 0.04]} />
+                <primitive object={materials.aluminum} attach="material" />
             </mesh>
         </group>
 
         {/* Capacitors */}
-        <Instances range={20}>
+        <Instances range={30}>
             <cylinderGeometry args={[0.04, 0.04, 0.08, 8]} />
             <primitive object={materials.aluminum} attach="material" />
-            {[...Array(5)].map((_, i) => <Instance key={i} position={[-0.5 + i * 0.1, 0.8, 0.05]} />)}
-            {[...Array(5)].map((_, i) => <Instance key={`b-${i}`} position={[-0.5 + i * 0.1, 0.4, 0.05]} />)}
+            {[...Array(8)].map((_, i) => <Instance key={`t-${i}`} position={[-0.5 + i * 0.15, 0.8, 0.05]} />)}
+            {[...Array(8)].map((_, i) => <Instance key={`b-${i}`} position={[-0.5 + i * 0.15, 0.4, 0.05]} />)}
         </Instances>
     </group>
 );
@@ -271,23 +268,13 @@ const MotherboardLOD2 = ({ hovered }: any) => (
 
 
 export const GPU = ({ onFocus, temp = 40, load = 0 }: any) => {
-    const groupRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        if (groupRef.current && load > 0.6) {
-            const vibration = Math.sin(state.clock.elapsedTime * 800) * 0.0003 * load;
-            groupRef.current.position.y = vibration;
-        }
-    });
-
     return (
         <InteractivePart onFocus={onFocus} position={[0, 0, 0]}>
-            <group ref={groupRef}>
-                <Detailed distances={[0, 10, 20]}>
-                    <GPULOD0 temp={temp} />
-                    <GPULOD1 />
-                    <GPULOD2 />
-                </Detailed>
-            </group>
+            <Detailed distances={[0, 15, 30]}>
+                <GPULOD0 temp={temp} />
+                <GPULOD1 />
+                <GPULOD2 />
+            </Detailed>
         </InteractivePart>
     );
 };
@@ -299,28 +286,38 @@ const GPULOD0 = ({ temp }: any) => (
             <boxGeometry args={[3.2, 1.4, 0.05]} />
             <primitive object={materials.pcb} attach="material" />
         </mesh>
-        {/* Backplate */}
+        {/* Backplate (Detailed) */}
         <RoundedBox args={[3.2, 1.4, 0.02]} position={[0, 0, -0.04]} radius={0.02}>
             <primitive object={materials.aluminum} attach="material" />
+            {/* Cutouts */}
+            <mesh position={[0.5, 0, 0.02]}>
+                <planeGeometry args={[1.0, 0.8]} />
+                <meshStandardMaterial color="#111" />
+            </mesh>
         </RoundedBox>
-        {/* Heatsink */}
-        <mesh position={[0, 0, 0.15]}>
-            <boxGeometry args={[3.0, 1.2, 0.25]} />
-            <primitive object={materials.aluminum} attach="material" />
+        {/* Waterblock (Replaces Heatsink) */}
+        <mesh position={[0, 0, 0.1]}>
+            <boxGeometry args={[3.2, 1.4, 0.15]} />
+            <meshPhysicalMaterial color="#111" metalness={0.8} roughness={0.2} transmission={0.2} thickness={0.5} />
         </mesh>
-        {/* Shroud */}
-        <RoundedBox args={[3.3, 1.5, 0.1]} position={[0, 0, 0.35]} radius={0.1}>
-            <meshStandardMaterial color="#1a1a1a" metalness={0.7} roughness={0.3} />
+        {/* Acrylic Top */}
+        <RoundedBox args={[3.2, 1.4, 0.05]} position={[0, 0, 0.18]} radius={0.05}>
+            <meshPhysicalMaterial color="#ffffff" transmission={0.9} roughness={0.05} thickness={0.2} transparent />
         </RoundedBox>
-        {/* Fans */}
-        <Fan position={[-1.0, 0, 0.36]} scale={0.45} rpm={1500} temp={temp} />
-        <Fan position={[0, 0, 0.36]} scale={0.45} rpm={1500} temp={temp} />
-        <Fan position={[1.0, 0, 0.36]} scale={0.45} rpm={1500} temp={temp} />
-        {/* RGB Bar */}
-        <mesh position={[0, 0.76, 0.2]} rotation={[Math.PI / 2, 0, 0]}>
-            <boxGeometry args={[3.0, 0.1, 0.02]} />
-            <meshBasicMaterial color="#ff3c00" toneMapped={false} />
+        {/* RGB Strip */}
+        <mesh position={[0, 0.65, 0.15]}>
+            <boxGeometry args={[3.0, 0.05, 0.02]} />
+            <meshBasicMaterial color="#ff3c00" />
         </mesh>
+        {/* Fittings Ports */}
+        <group position={[1.2, 0.5, 0.2]}>
+            <Cylinder args={[0.15, 0.15, 0.2, 16]} rotation={[Math.PI / 2, 0, 0]}>
+                <primitive object={materials.chrome} attach="material" />
+            </Cylinder>
+            <Cylinder args={[0.15, 0.15, 0.2, 16]} position={[0, -1.0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <primitive object={materials.chrome} attach="material" />
+            </Cylinder>
+        </group>
     </group>
 );
 
@@ -354,17 +351,33 @@ export const CPUCooler = ({ onFocus, temp = 40 }: any) => {
     return (
         <InteractivePart onFocus={onFocus} position={[0, 0, 0]}>
             <group>
-                <RoundedBox args={[0.7, 0.7, 0.15]} radius={0.05}>
+                {/* Mounting Bracket */}
+                <RoundedBox args={[0.8, 0.8, 0.05]} radius={0.02}>
+                    <primitive object={materials.chrome} attach="material" />
+                </RoundedBox>
+                {/* Block Body */}
+                <RoundedBox args={[0.7, 0.7, 0.15]} position={[0, 0, 0.1]} radius={0.05}>
                     <primitive object={materials.matteBlack} attach="material" />
                 </RoundedBox>
-                <RoundedBox args={[0.6, 0.6, 0.1]} position={[0, 0, 0.13]} radius={0.02}>
-                    <meshPhysicalMaterial color="#ffffff" transmission={0.8} roughness={0.1} thickness={0.2} transparent />
+                {/* Acrylic Top */}
+                <RoundedBox args={[0.65, 0.65, 0.1]} position={[0, 0, 0.2]} radius={0.02}>
+                    <meshPhysicalMaterial color="#ffffff" transmission={0.9} roughness={0.05} thickness={0.2} transparent />
                 </RoundedBox>
-                <mesh position={[0, 0, 0.1]}>
-                    <boxGeometry args={[0.5, 0.5, 0.05]} />
+                {/* Coolant Liquid */}
+                <mesh position={[0, 0, 0.18]}>
+                    <boxGeometry args={[0.6, 0.6, 0.05]} />
                     {/* @ts-ignore */}
                     <coolantMaterial ref={coolantRef} transparent />
                 </mesh>
+                {/* Fittings */}
+                <group position={[0, 0.2, 0.25]} rotation={[Math.PI / 2, 0, 0]}>
+                    <Cylinder args={[0.1, 0.1, 0.15, 12]} position={[0.15, 0, 0]}>
+                        <primitive object={materials.chrome} attach="material" />
+                    </Cylinder>
+                    <Cylinder args={[0.1, 0.1, 0.15, 12]} position={[-0.15, 0, 0]}>
+                        <primitive object={materials.chrome} attach="material" />
+                    </Cylinder>
+                </group>
             </group>
         </InteractivePart>
     );

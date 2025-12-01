@@ -2,8 +2,8 @@ import React, { useRef, useState, useMemo, useEffect } from 'react';
 // Re-indexing trigger
 import { useFrame, extend } from '@react-three/fiber';
 import * as THREE from 'three';
-import { RoundedBox, Tube, Extrude, Float, Cylinder, Sparkles, MeshDistortMaterial } from '@react-three/drei';
-import { Motherboard, GPU, CPUCooler, RAMSticks, Fan, PSU, Cables } from './PCComponents';
+import { RoundedBox, Tube, Extrude, Float, Cylinder, Sparkles, MeshDistortMaterial, Instances, Instance } from '@react-three/drei';
+import { Motherboard, GPU, CPUCooler, RAMSticks, Fan, PSU, Cables } from './PCComponents.tsx';
 
 export const PCCase = ({ onFocus }: { onFocus?: (pos: THREE.Vector3) => void }) => {
     const [hovered, setHovered] = useState(false);
@@ -22,11 +22,13 @@ export const PCCase = ({ onFocus }: { onFocus?: (pos: THREE.Vector3) => void }) 
 
     // --- Materials ---
     const frameMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
-        color: '#ff2a00',
-        metalness: 0.6,
+        color: '#ff2a00', // Ducati Red
+        emissive: '#330500',
+        metalness: 0.7,
         roughness: 0.2,
         clearcoat: 1.0,
-        clearcoatRoughness: 0.1,
+        clearcoatRoughness: 0.05,
+        reflectivity: 1.0,
     }), []);
 
     const carbonMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
@@ -60,44 +62,87 @@ export const PCCase = ({ onFocus }: { onFocus?: (pos: THREE.Vector3) => void }) 
 
     // --- Geometry Definitions ---
 
-    // Frame wraps AROUND the ATX components (approx 3x4 units)
-    const framePath = useMemo(() => {
-        const curve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-2.0, -3.0, 1.5), // Bottom Front Left
-            new THREE.Vector3(-2.0, 3.0, 1.0),  // Top Front Left
-            new THREE.Vector3(-1.5, 4.0, -1.0), // Top Back Left
-            new THREE.Vector3(-1.5, -2.0, -1.5),// Bottom Back Left
-            new THREE.Vector3(-2.0, -3.0, 1.5), // Loop back
-        ]);
-        curve.closed = true;
-        return curve;
-    }, []);
+    // Trellis Frame Construction
+    // Normalized Scale: 1 unit = 10cm
+    // Frame Length: ~60cm (6.0 units)
+    // Frame Height: ~40cm (4.0 units)
+    // Frame Width: ~25cm (2.5 units)
 
-    const framePathRight = useMemo(() => {
-        const curve = new THREE.CatmullRomCurve3([
-            new THREE.Vector3(2.0, -3.0, 1.5), // Bottom Front Right
-            new THREE.Vector3(2.0, 3.0, 1.0),  // Top Front Right
-            new THREE.Vector3(1.5, 4.0, -1.0), // Top Back Right
-            new THREE.Vector3(1.5, -2.0, -1.5),// Bottom Back Right
-            new THREE.Vector3(2.0, -3.0, 1.5), // Loop back
-        ]);
-        curve.closed = true;
-        return curve;
-    }, []);
+    const createTrellisSide = (offsetX: number) => {
+        const tubes = [];
+
+        // 1. Main Spar: Headstock -> Swingarm Pivot (Top Front -> Bottom Rear)
+        tubes.push(new THREE.CatmullRomCurve3([
+            new THREE.Vector3(offsetX, 2.0, 2.5),  // Headstock (Front Top)
+            new THREE.Vector3(offsetX, 1.8, 1.5),
+            new THREE.Vector3(offsetX * 0.8, -1.0, -1.5),
+            new THREE.Vector3(offsetX, -2.0, -2.5) // Pivot (Rear Bottom)
+        ]));
+
+        // 2. Bottom Rail: Engine Cradle
+        tubes.push(new THREE.CatmullRomCurve3([
+            new THREE.Vector3(offsetX, -1.5, 2.5), // Front Engine Mount
+            new THREE.Vector3(offsetX, -2.2, 0.0),
+            new THREE.Vector3(offsetX, -2.0, -2.5) // Connect to Pivot
+        ]));
+
+        // 3. Top Rail: Tank Support
+        tubes.push(new THREE.CatmullRomCurve3([
+            new THREE.Vector3(offsetX, 2.0, 2.5), // Headstock
+            new THREE.Vector3(offsetX, 2.2, 0.0),
+            new THREE.Vector3(offsetX, 2.0, -2.5) // Seat Subframe start
+        ]));
+
+        // 4. Vertical/Diagonal Bracing
+        tubes.push(new THREE.LineCurve3(new THREE.Vector3(offsetX, 2.0, 2.5), new THREE.Vector3(offsetX, -1.5, 2.5))); // Front Vert
+        tubes.push(new THREE.LineCurve3(new THREE.Vector3(offsetX, 1.8, 1.5), new THREE.Vector3(offsetX, -2.2, 0.0))); // Mid Diag 1
+        tubes.push(new THREE.LineCurve3(new THREE.Vector3(offsetX, 2.2, 0.0), new THREE.Vector3(offsetX * 0.8, -1.0, -1.5))); // Mid Diag 2
+        tubes.push(new THREE.LineCurve3(new THREE.Vector3(offsetX * 0.8, -1.0, -1.5), new THREE.Vector3(offsetX, 2.0, -2.5))); // Rear Support
+
+        return tubes;
+    };
+
+    const leftFrame = useMemo(() => createTrellisSide(-1.2), []); // Width ~24cm total
+    const rightFrame = useMemo(() => createTrellisSide(1.2), []);
 
     // Crossbars
-    const crossBar1 = useMemo(() => new THREE.LineCurve3(new THREE.Vector3(-2.0, 2.5, 1.1), new THREE.Vector3(2.0, 2.5, 1.1)), []);
-    const crossBar2 = useMemo(() => new THREE.LineCurve3(new THREE.Vector3(-1.5, 3.8, -1.0), new THREE.Vector3(1.5, 3.8, -1.0)), []);
-    const crossBar3 = useMemo(() => new THREE.LineCurve3(new THREE.Vector3(-2.0, -2.8, 1.4), new THREE.Vector3(2.0, -2.8, 1.4)), []);
+    const crossBars = useMemo(() => [
+        new THREE.LineCurve3(new THREE.Vector3(-1.2, 2.0, 2.5), new THREE.Vector3(1.2, 2.0, 2.5)), // Headstock
+        new THREE.LineCurve3(new THREE.Vector3(-1.2, -2.0, -2.5), new THREE.Vector3(1.2, -2.0, -2.5)), // Pivot
+        new THREE.LineCurve3(new THREE.Vector3(-1.2, -1.5, 2.5), new THREE.Vector3(1.2, -1.5, 2.5)), // Bottom Front
+        new THREE.LineCurve3(new THREE.Vector3(-1.2, 2.0, -2.5), new THREE.Vector3(1.2, 2.0, -2.5)), // Rear Seat
+    ], []);
 
-    // Canopy Shape
+    // Canopy Shape (Tank)
     const canopyShape = useMemo(() => {
         const shape = new THREE.Shape();
-        shape.moveTo(-2.1, 0);
-        shape.lineTo(2.1, 0);
-        shape.lineTo(1.6, -4);
-        shape.lineTo(-1.6, -4);
-        shape.lineTo(-2.1, 0);
+        shape.moveTo(-1.4, 0);
+        shape.bezierCurveTo(-1.4, 1.0, 1.4, 1.0, 1.4, 0); // Top curve
+        shape.lineTo(1.2, -3.5);
+        shape.lineTo(-1.2, -3.5);
+        shape.lineTo(-1.4, 0);
+        return shape;
+    }, []);
+
+    // Side Wing Shape
+    const wingShape = useMemo(() => {
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(1.0, 0.3);
+        shape.lineTo(0.8, -1.5);
+        shape.lineTo(0, -1.0);
+        shape.lineTo(0, 0);
+        return shape;
+    }, []);
+
+    // Belly Pan Shape
+    const bellyShape = useMemo(() => {
+        const shape = new THREE.Shape();
+        shape.moveTo(-1.0, 0);
+        shape.lineTo(1.0, 0);
+        shape.lineTo(0.8, -0.8);
+        shape.lineTo(-0.8, -0.8);
+        shape.lineTo(-1.0, 0);
         return shape;
     }, []);
 
@@ -107,142 +152,183 @@ export const PCCase = ({ onFocus }: { onFocus?: (pos: THREE.Vector3) => void }) 
     };
 
     return (
-        <group
+        <group name="DuciChassisAssembly"
             onPointerOver={() => setHovered(true)}
             onPointerOut={() => setHovered(false)}
             onDoubleClick={handleDoubleClick}
-            rotation={[0.1, -0.4, 0]}
-            position={[0, 0.5, 0]}
+            position={[0, 0, 0]} // Root centered
         >
-            <Float speed={2} rotationIntensity={0.1} floatIntensity={0.2}>
-                {/* --- FRAME STRUCTURE --- */}
-                <group>
-                    <Tube args={[framePath, 32, 0.08, 6, true]}>
+            <Float speed={2} rotationIntensity={0.05} floatIntensity={0.1} floatingRange={[0.05, 0.1]}>
+
+                {/* --- GROUP: FRAME --- */}
+                <group name="Frame">
+                    {/* Left Trellis */}
+                    {leftFrame.map((path, i) => (
+                        <Tube key={`L-${i}`} args={[path, 12, 0.05, 8, false]}>
+                            <primitive object={frameMaterial} attach="material" />
+                        </Tube>
+                    ))}
+                    {/* Right Trellis */}
+                    {rightFrame.map((path, i) => (
+                        <Tube key={`R-${i}`} args={[path, 12, 0.05, 8, false]}>
+                            <primitive object={frameMaterial} attach="material" />
+                        </Tube>
+                    ))}
+                    {/* Crossbars */}
+                    {crossBars.map((path, i) => (
+                        <Tube key={`C-${i}`} args={[path, 1, 0.04, 8, false]}>
+                            <primitive object={frameMaterial} attach="material" />
+                        </Tube>
+                    ))}
+                    {/* Joints */}
+                    <Instances range={20}>
+                        <sphereGeometry args={[0.07, 16, 16]} />
                         <primitive object={frameMaterial} attach="material" />
-                    </Tube>
-                    <Tube args={[framePathRight, 32, 0.08, 6, true]}>
-                        <primitive object={frameMaterial} attach="material" />
-                    </Tube>
-                    <Tube args={[crossBar1, 2, 0.06, 6, false]}>
-                        <primitive object={frameMaterial} attach="material" />
-                    </Tube>
-                    <Tube args={[crossBar2, 2, 0.06, 6, false]}>
-                        <primitive object={frameMaterial} attach="material" />
-                    </Tube>
-                    <Tube args={[crossBar3, 2, 0.06, 6, false]}>
-                        <primitive object={frameMaterial} attach="material" />
-                    </Tube>
+                        <Instance position={[-1.2, 2.0, 2.5]} />
+                        <Instance position={[1.2, 2.0, 2.5]} />
+                        <Instance position={[-1.2, -2.0, -2.5]} />
+                        <Instance position={[1.2, -2.0, -2.5]} />
+                    </Instances>
                 </group>
 
-                {/* --- PANELS --- */}
-                <group>
+                {/* --- GROUP: PANELS --- */}
+                <group name="Panels">
                     {/* Top Canopy */}
-                    <group position={[0, 4.2, 1.2]} rotation={[Math.PI / 2 - 0.2, 0, 0]}>
-                        <Extrude args={[canopyShape, { depth: 0.1, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02 }]}>
+                    <group position={[0, 2.4, 2.0]} rotation={[Math.PI / 2 - 0.1, 0, 0]}>
+                        <Extrude args={[canopyShape, { depth: 0.05, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03 }]}>
                             <primitive object={carbonMaterial} attach="material" />
                         </Extrude>
                     </group>
-                    {/* Bottom Guard */}
-                    <group position={[0, -3.2, 0]} rotation={[Math.PI / 2 + 0.2, 0, 0]}>
-                        <Extrude args={[canopyShape, { depth: 0.1, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02 }]}>
+                    {/* Side Wings */}
+                    <group position={[-1.3, 1.0, 2.0]} rotation={[0, -0.3, 0]}>
+                        <Extrude args={[wingShape, { depth: 0.03, bevelEnabled: true, bevelSize: 0.01 }]}>
+                            <primitive object={carbonMaterial} attach="material" />
+                        </Extrude>
+                    </group>
+                    <group position={[1.3, 1.0, 2.0]} rotation={[0, 0.3, 0]}>
+                        <group scale={[-1, 1, 1]}>
+                            <Extrude args={[wingShape, { depth: 0.03, bevelEnabled: true, bevelSize: 0.01 }]}>
+                                <primitive object={carbonMaterial} attach="material" />
+                            </Extrude>
+                        </group>
+                    </group>
+                    {/* Belly Pan */}
+                    <group position={[0, -2.4, 1.5]} rotation={[Math.PI / 2 + 0.1, 0, 0]}>
+                        <Extrude args={[bellyShape, { depth: 0.05, bevelEnabled: true, bevelSize: 0.03 }]}>
                             <primitive object={carbonMaterial} attach="material" />
                         </Extrude>
                     </group>
                 </group>
 
-                {/* --- CHASSIS SPINE (CENTRAL MOUNT) --- */}
-                <group position={[0, 0.5, 0]}>
-                    {/* Backplate */}
-                    <RoundedBox args={[3.0, 4.0, 0.1]} position={[0, 0, -0.1]} radius={0.05}>
+                {/* --- GROUP: MOTHERBOARD MOUNT --- */}
+                {/* Centered in frame, tilted slightly forward for aggression */}
+                <group name="MotherboardMount" position={[0, 0, 0]} rotation={[0.1, 0, 0]}>
+                    {/* Motherboard Tray */}
+                    <RoundedBox args={[2.6, 3.2, 0.1]} position={[0, 0, -0.1]} radius={0.05}>
                         <primitive object={carbonMaterial} attach="material" />
                     </RoundedBox>
 
-                    {/* --- MOTHERBOARD ASSEMBLY --- */}
-                    <group position={[0, 0.2, 0.05]}>
-                        <Motherboard onFocus={onFocus} temp={temp} load={load} />
+                    {/* Motherboard Component */}
+                    <Motherboard onFocus={onFocus} temp={temp} load={load} />
 
-                        {/* CPU Cooler on Socket */}
-                        <group position={[0.2, 0.8, 0.1]}>
-                            <CPUCooler onFocus={onFocus} temp={temp} />
-                        </group>
-
-                        {/* RAM in Slots */}
-                        <group position={[0.8, 0.8, 0.1]}>
-                            <RAMSticks onFocus={onFocus} />
-                        </group>
-
-                        {/* GPU in PCIe Slot 1 */}
-                        <group position={[0, -0.6, 0.2]}>
-                            <GPU onFocus={onFocus} temp={temp} load={load} />
-                        </group>
-
-                        {/* Cables */}
-                        <Cables />
+                    {/* Sub-components mounted to Mobo */}
+                    <group position={[0.2, 0.8, 0.1]}>
+                        <CPUCooler onFocus={onFocus} temp={temp} />
                     </group>
+                    <group position={[0.8, 0.8, 0.1]}>
+                        <RAMSticks onFocus={onFocus} />
+                    </group>
+                    <group position={[0, -0.6, 0.2]}>
+                        <GPU onFocus={onFocus} temp={temp} load={load} />
+                    </group>
+                    <Cables />
                 </group>
 
-                {/* --- PSU (Bottom Rear) --- */}
-                <group position={[0, -2.5, -0.5]} rotation={[0, 0, 0]}>
+                {/* --- GROUP: PSU MOUNT --- */}
+                <group name="PSUMount" position={[0, -2.2, -1.0]}>
                     <PSU onFocus={onFocus} />
                 </group>
 
-                {/* --- COOLING SYSTEM --- */}
-                {/* Radiator + Fans (Front) */}
-                <group position={[0, 0.5, 2.5]} rotation={[-0.1, 0, 0]}>
-                    <RoundedBox args={[1.4, 4.2, 0.2]} position={[0, 0, -0.15]} radius={0.02}>
-                        <primitive object={radiatorMaterial} attach="material" />
-                    </RoundedBox>
-                    <Fan position={[0, 1.3, 0.1]} rpm={1200} size={1.2} temp={temp} />
-                    <Fan position={[0, 0, 0.1]} rpm={1200} size={1.2} temp={temp} />
-                    <Fan position={[0, -1.3, 0.1]} rpm={1200} size={1.2} temp={temp} />
+                {/* --- GROUP: COOLING LOOP --- */}
+                <group name="CoolingLoop">
+                    {/* Radiator Mount (Left Side) */}
+                    <group name="RadiatorMount" position={[-1.8, 0, 0.5]} rotation={[0, 0.3, 0]}>
+                        <RoundedBox args={[1.4, 4.0, 0.3]} radius={0.05}>
+                            <primitive object={radiatorMaterial} attach="material" />
+                        </RoundedBox>
+                        <group position={[0, 0, 0.16]}>
+                            <Fan position={[0, 1.2, 0]} rpm={1200} size={1.2} temp={temp} />
+                            <Fan position={[0, 0, 0]} rpm={1200} size={1.2} temp={temp} />
+                            <Fan position={[0, -1.2, 0]} rpm={1200} size={1.2} temp={temp} />
+                        </group>
+                    </group>
+
+                    {/* Reservoir Mount (Right Side) */}
+                    <group name="ReservoirMount" position={[1.8, -1.0, 0.5]} rotation={[0, -0.3, 0]}>
+                        <Cylinder args={[0.35, 0.35, 2.0, 16]} position={[0, 0.5, 0]}>
+                            <meshPhysicalMaterial color="#ff3c00" transmission={0.9} thickness={0.2} roughness={0.1} />
+                        </Cylinder>
+                        <Cylinder args={[0.4, 0.45, 0.6, 16]} position={[0, -0.8, 0]}>
+                            <primitive object={radiatorMaterial} attach="material" />
+                        </Cylinder>
+                        <Cylinder args={[0.4, 0.4, 0.2, 16]} position={[0, 1.6, 0]}>
+                            <primitive object={radiatorMaterial} attach="material" />
+                        </Cylinder>
+                    </group>
+
+                    {/* Tubing Routing */}
+                    <group name="Tubing">
+                        {/* 1. Pump (Res Bottom) -> GPU In */}
+                        <Tube args={[new THREE.CatmullRomCurve3([
+                            new THREE.Vector3(1.8, -1.8, 0.5), // Pump Out
+                            new THREE.Vector3(1.5, -2.2, 0.5),
+                            new THREE.Vector3(0.5, -2.2, 0.5),
+                            new THREE.Vector3(0.5, -1.0, 0.5), // GPU In (approx)
+                        ]), 20, 0.04, 8, false]}>
+                            {/* @ts-ignore */}
+                            <coolantMaterial ref={coolantRef1} transparent color="#ff3c00" />
+                        </Tube>
+
+                        {/* 2. GPU Out -> CPU In */}
+                        <Tube args={[new THREE.CatmullRomCurve3([
+                            new THREE.Vector3(0.0, -0.2, 0.5), // GPU Out
+                            new THREE.Vector3(-0.4, 0.2, 0.6),
+                            new THREE.Vector3(-0.2, 0.8, 0.5), // CPU In
+                        ]), 16, 0.04, 8, false]}>
+                            {/* @ts-ignore */}
+                            <coolantMaterial ref={coolantRef2} transparent color="#ff3c00" />
+                        </Tube>
+
+                        {/* 3. CPU Out -> Radiator Top */}
+                        <Tube args={[new THREE.CatmullRomCurve3([
+                            new THREE.Vector3(0.2, 1.2, 0.5), // CPU Out
+                            new THREE.Vector3(0.2, 1.8, 0.5),
+                            new THREE.Vector3(-1.2, 2.0, 0.5),
+                            new THREE.Vector3(-1.6, 1.8, 0.5), // Rad Top
+                        ]), 20, 0.04, 8, false]}>
+                            {/* @ts-ignore */}
+                            <coolantMaterial transparent color="#ff3c00" />
+                        </Tube>
+
+                        {/* 4. Radiator Bottom -> Reservoir Top */}
+                        <Tube args={[new THREE.CatmullRomCurve3([
+                            new THREE.Vector3(-1.6, -1.8, 0.5), // Rad Bottom
+                            new THREE.Vector3(-1.2, -2.2, 0.5),
+                            new THREE.Vector3(1.2, -2.2, 0.5),
+                            new THREE.Vector3(1.8, 0.8, 0.5), // Res Top
+                        ]), 24, 0.04, 8, false]}>
+                            {/* @ts-ignore */}
+                            <coolantMaterial transparent color="#ff3c00" />
+                        </Tube>
+                    </group>
                 </group>
 
-                {/* Reservoir (Side Mounted) */}
-                <group position={[-1.8, 0, 0.5]}>
-                    <Cylinder args={[0.3, 0.3, 2.5, 16]}>
-                        <meshPhysicalMaterial color="#ff3c00" transmission={0.9} thickness={0.2} roughness={0.1} />
-                    </Cylinder>
-                    <Cylinder args={[0.35, 0.35, 0.1, 16]} position={[0, 1.25, 0]}>
-                        <primitive object={radiatorMaterial} attach="material" />
-                    </Cylinder>
-                    <Cylinder args={[0.35, 0.35, 0.1, 16]} position={[0, -1.25, 0]}>
-                        <primitive object={radiatorMaterial} attach="material" />
-                    </Cylinder>
+                {/* --- GROUP: PEDESTAL ATTACH POINT --- */}
+                <group name="PedestalAttach" position={[0, -2.5, 0]}>
+                    {/* Visual marker for where the levitation happens */}
+                    {/* Invisible in final, but useful for alignment */}
                 </group>
 
-                {/* --- TUBING (Physics Correct) --- */}
-                <group>
-                    {/* CPU Out -> Radiator Top */}
-                    <Tube args={[new THREE.CatmullRomCurve3([
-                        new THREE.Vector3(0.2, 1.3, 0.2), // CPU Block
-                        new THREE.Vector3(0.2, 1.8, 0.5), // Up
-                        new THREE.Vector3(0, 2.0, 2.3), // Rad Top
-                    ]), 32, 0.04, 6, false]}>
-                        {/* @ts-ignore */}
-                        <coolantMaterial ref={coolantRef1} transparent />
-                    </Tube>
-
-                    {/* GPU Out -> Reservoir Bottom */}
-                    <Tube args={[new THREE.CatmullRomCurve3([
-                        new THREE.Vector3(0.5, -0.5, 0.5), // GPU Block
-                        new THREE.Vector3(0.8, -1.0, 0.8), // Out
-                        new THREE.Vector3(-1.0, -1.5, 0.8), // Across
-                        new THREE.Vector3(-1.8, -1.2, 0.5), // Res Bottom
-                    ]), 32, 0.04, 6, false]}>
-                        {/* @ts-ignore */}
-                        <coolantMaterial ref={coolantRef2} transparent />
-                    </Tube>
-                </group>
-
-                {/* --- GLOBAL VFX --- */}
-                <Sparkles count={50} scale={10} size={2} speed={0.4} opacity={0.5} color="#fff" />
-
-                {temp > 50 && (
-                    <mesh position={[0, 1.5, 0]}>
-                        <sphereGeometry args={[1.5, 16, 16]} />
-                        <MeshDistortMaterial color="#ffffff" transparent opacity={0.0} distort={0.3} speed={2} roughness={0} />
-                    </mesh>
-                )}
             </Float>
         </group>
     );

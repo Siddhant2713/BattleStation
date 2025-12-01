@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Box, Plane, Instances, Instance, Float, MeshReflectorMaterial } from '@react-three/drei';
+import { Box, Plane, Instances, Instance, Float } from '@react-three/drei';
 import * as THREE from 'three';
 
 export const LabEnvironment = () => {
@@ -48,18 +48,10 @@ export const LabEnvironment = () => {
             {/* --- FLOORING (Premium Matte Black) --- */}
             <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -4, 0]} receiveShadow>
                 <planeGeometry args={[100, 100]} />
-                <MeshReflectorMaterial
-                    blur={[400, 100]}
-                    resolution={2048}
-                    mixBlur={1}
-                    mixStrength={20} // Slightly increased for premium feel
-                    roughness={0.6} // Micro-texture feel
-                    depthScale={1}
-                    minDepthThreshold={0.4}
-                    maxDepthThreshold={1.4}
+                <meshStandardMaterial
                     color="#050505"
-                    metalness={0.6}
-                    mirror={0.3}
+                    roughness={0.6}
+                    metalness={0.5}
                 />
             </mesh>
 

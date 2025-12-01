@@ -121,28 +121,27 @@ export const DashboardScene = () => {
 
             <LabEnvironment />
 
-            {/* Soft Global Illumination (Boosted for White Theme) */}
-            <ambientLight intensity={0.8} color="#ffffff" />
+            {/* Soft Global Illumination */}
+            <ambientLight intensity={0.5} color="#ffffff" />
 
-            {/* Hero Spotlight (Clean White & Sharp Shadows) */}
+            {/* Hero Spotlight (Optimized) */}
             <SpotLight
                 ref={spotLightRef}
                 position={[0, 15, 5]}
                 angle={0.4}
                 penumbra={0.2}
-                intensity={400}
+                intensity={200}
                 color="#ffffff"
                 castShadow
-                shadow-mapSize={[4096, 4096]} // High Res Shadows
+                shadow-mapSize={[1024, 1024]}
                 shadow-bias={-0.00005}
             />
 
             {/* Rim Lights for Definition */}
-            <pointLight position={[-10, 5, -5]} intensity={15} color="#ffffff" distance={20} />
-            <pointLight position={[10, 5, -5]} intensity={15} color="#ffffff" distance={20} />
+            <pointLight position={[-10, 5, -5]} intensity={5} color="#ffffff" distance={20} />
+            <pointLight position={[10, 5, -5]} intensity={5} color="#ffffff" distance={20} />
 
             {/* --- ACTORS --- */}
-            {/* Robotic Arms Removed */}
 
             <group ref={pedestalRef}>
                 <CorePedestal />
@@ -150,7 +149,7 @@ export const DashboardScene = () => {
                 <Float speed={2} rotationIntensity={0} floatIntensity={0.5} floatingRange={[0.05, 0.1]}>
                     <group
                         ref={pcGroupRef}
-                        position={[0, 0.8, 0]} // Lowered starting position (was 1.2)
+                        position={[0, 1.5, 0]}
                         scale={0.7}
                         onClick={() => setIsInteracting(true)}
                     >
@@ -168,15 +167,9 @@ export const DashboardScene = () => {
                 </Float>
             </group>
 
-            {/* --- POST PROCESSING (Ultra Sharp) --- */}
-            <EffectComposer>
-                {/* Subtle Bloom for lights only */}
+            {/* --- POST PROCESSING (Optimized) --- */}
+            <EffectComposer enableNormalPass={false}>
                 <Bloom luminanceThreshold={1.5} mipmapBlur intensity={0.3} radius={0.2} />
-                {/* Minimal Noise for realism, barely visible */}
-                <Noise opacity={0.005} />
-                {/* Vignette to focus eyes */}
-                <Vignette eskil={false} offset={0.1} darkness={0.6} />
-                {/* No DepthOfField for maximum clarity */}
             </EffectComposer>
         </>
     );
