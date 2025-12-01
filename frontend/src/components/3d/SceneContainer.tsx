@@ -1,7 +1,7 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Environment, CameraControls, Preload } from '@react-three/drei';
-import { EffectComposer, Bloom, Noise, Vignette } from '@react-three/postprocessing';
+import { Environment, CameraControls, Preload, PerformanceMonitor, ContactShadows } from '@react-three/drei';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 
 interface SceneContainerProps {
     children: React.ReactNode;
@@ -14,56 +14,83 @@ export const SceneContainer: React.FC<SceneContainerProps> = ({
     className = "w-full h-full",
     cameraPosition = [0, 0, 5]
 }) => {
+    const [dpr, setDpr] = useState(1.5);
+
     return (
         <div className={className}>
             <Canvas
-                shadows
-                dpr={[1, 2]}
+                shadows={false} // Disable default heavy shadow maps
+                dpr={dpr}
                 camera={{ position: cameraPosition, fov: 45 }}
-                gl={{ antialias: false }} // Post-processing handles AA usually, or turn on if needed
+                gl={{
+                    antialias: false, // Post-processing handles AA or we rely on DPR
+                    powerPreference: "high-performance",
+                    stencil: false,
+                    depth: true
+                }}
             >
-                <Suspense fallback={null}>
-                    {/* Dramatic Lighting Setup */}
-                    <ambientLight intensity={0.2} color="#0B0C10" />
+                {/* Dynamic Resolution Scaling */}
+                <PerformanceMonitor
+                    onIncline={() => setDpr(1.5)}
+                    onDecline={() => setDpr(0.75)}
+                    flipflops={3}
+                    onFallback={() => setDpr(0.75)}
+                />
 
-                    {/* Key Light (Cool Blue/White) */}
+                <Suspense fallback={null}>
+                    {/* Efficient Lighting Setup */}
+                    <ambientLight intensity={0.4} color="#0B0C10" />
+
+                    {/* Key Light - Static if possible, or minimal shadow map */}
                     <spotLight
                         position={[10, 10, 10]}
                         angle={0.3}
                         penumbra={1}
                         intensity={2}
                         color="#C5C6C7"
-                        castShadow
-                        shadow-bias={-0.0001}
+                        castShadow={false} // Disable expensive dynamic shadows
                     />
 
-                    {/* Rim Light (Neon Crimson) - Backlight for edge definition */}
+                    {/* Rim Light */}
                     <spotLight
                         position={[-5, 5, -10]}
                         angle={0.5}
                         penumbra={1}
                         intensity={5}
                         color="#FF003C"
-                        castShadow
+                        castShadow={false}
                     />
 
-                    {/* Fill Light (Subtle Purple/Blue) */}
+                    {/* Fill Light */}
                     <pointLight position={[-10, -5, 5]} intensity={0.5} color="#45A29E" />
 
-                    {/* Environment */}
-                    <Environment preset="city" environmentIntensity={0.5} />
+                    {/* Environment - Low Res for lighting */}
+                    <Environment preset="city" environmentIntensity={0.5} resolution={256} />
 
                     {/* Content */}
                     {children}
 
-                    {/* Controls - Replaced OrbitControls with CameraControls for smooth transitions */}
-                    <CameraControls makeDefault minDistance={2} maxDistance={20} />
+                    {/* Baked-like Soft Shadows */}
+                    <ContactShadows
+                        position={[0, -4, 0]}
+                        opacity={0.6}
+                        scale={20}
+                        blur={2}
+                        far={4.5}
+                    />
 
-                    {/* Post Processing */}
-                    <EffectComposer enableNormalPass={false}>
-                        <Bloom luminanceThreshold={1} mipmapBlur intensity={1.5} radius={0.4} />
-                        <Noise opacity={0.05} />
-                        <Vignette eskil={false} offset={0.1} darkness={1.1} />
+                    {/* Controls */}
+                    <CameraControls makeDefault minDistance={2} maxDistance={20} smoothTime={0.25} />
+
+                    {/* Optimized Post Processing */}
+                    <EffectComposer>
+                        <Bloom
+                            luminanceThreshold={1.2} // Only very bright things glow
+                            mipmapBlur
+                            intensity={0.8}
+                            radius={0.4}
+                            levels={4} // Reduce levels for performance
+                        />
                     </EffectComposer>
 
                     <Preload all />
