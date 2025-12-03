@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { RoundedBox, Tube, Extrude, Float, Cylinder, Sparkles, MeshDistortMaterial, Instances, Instance } from '@react-three/drei';
 import { Motherboard, GPU, CPUCooler, RAMSticks, Fan, PSU, Cables } from './PCComponents.tsx';
 
-export const PCCase = ({ onFocus }: { onFocus?: (pos: THREE.Vector3) => void }) => {
+export const PCCase = ({ onFocus, color = '#ff2a00' }: { onFocus?: (pos: THREE.Vector3) => void, color?: string }) => {
     const [hovered, setHovered] = useState(false);
 
     // Simulation State
@@ -22,14 +22,14 @@ export const PCCase = ({ onFocus }: { onFocus?: (pos: THREE.Vector3) => void }) 
 
     // --- Materials ---
     const frameMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
-        color: '#ff2a00', // Ducati Red
+        color: color, // Dynamic Color
         emissive: '#330500',
         metalness: 0.7,
         roughness: 0.2,
         clearcoat: 1.0,
         clearcoatRoughness: 0.05,
         reflectivity: 1.0,
-    }), []);
+    }), [color]);
 
     const carbonMaterial = useMemo(() => new THREE.MeshPhysicalMaterial({
         color: '#111',

@@ -2,7 +2,6 @@ import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, CameraControls, ContactShadows, Float, SpotLight } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, Noise, DepthOfField } from '@react-three/postprocessing';
-import { PCCase } from '../pc/PCCase';
 import { LabEnvironment } from './LabEnvironment';
 
 import { CorePedestal } from './CorePedestal';
@@ -11,7 +10,9 @@ import * as THREE from 'three';
 
 import { gsap } from 'gsap';
 
-export const DashboardScene = () => {
+import { CabinetLoader } from './CabinetLoader';
+
+export const DashboardScene = ({ cabinetId = 'ducati-monster' }: { cabinetId?: string }) => {
     const cameraControlsRef = useRef<CameraControls>(null);
     const pedestalRef = useRef<THREE.Group>(null);
     const spotLightRef = useRef<THREE.SpotLight>(null);
@@ -153,7 +154,7 @@ export const DashboardScene = () => {
                         scale={0.7}
                         onClick={() => setIsInteracting(true)}
                     >
-                        <PCCase onFocus={handleFocus} />
+                        <CabinetLoader cabinetId={cabinetId} onLoaded={() => { }} />
                         <HologramOverlay
                             visible={isInteracting || isWarning}
                             label={isCritical ? "CRITICAL FAILURE" : "SYSTEM OPTIMAL"}
