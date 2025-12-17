@@ -4,20 +4,23 @@ import { useFrame, extend } from '@react-three/fiber';
 import * as THREE from 'three';
 import { RoundedBox, Tube, Extrude, Float, Cylinder, Sparkles, MeshDistortMaterial, Instances, Instance } from '@react-three/drei';
 import { Motherboard, GPU, CPUCooler, RAMSticks, Fan, PSU, Cables } from './PCComponents.tsx';
+import { clampDelta } from '../../utils/AnimationUtils';
 
 export const PCCase = ({ onFocus, color = '#ff2a00' }: { onFocus?: (pos: THREE.Vector3) => void, color?: string }) => {
     const [hovered, setHovered] = useState(false);
 
-    // Simulation State
-    const [temp, setTemp] = useState(40);
-    const [load, setLoad] = useState(0);
+    // Simulation State (Refs for performance - no re-renders)
+    const simulationState = useRef({ temp: 40, load: 0 });
 
-    useFrame((state) => {
+    useFrame((state, delta) => {
         const time = state.clock.elapsedTime;
+
+        // Update simulation state without triggering React renders
         const newLoad = (Math.sin(time * 0.5) + 1) / 2;
-        setLoad(newLoad);
+        simulationState.current.load = newLoad;
+
         const targetTemp = 40 + newLoad * 40;
-        setTemp(prev => THREE.MathUtils.lerp(prev, targetTemp, 0.01));
+        simulationState.current.temp = THREE.MathUtils.lerp(simulationState.current.temp, targetTemp, 0.01);
     });
 
     // --- Materials ---
@@ -50,12 +53,15 @@ export const PCCase = ({ onFocus, color = '#ff2a00' }: { onFocus?: (pos: THREE.V
     const coolantRef2 = useRef<any>(null);
 
     useFrame((state, delta) => {
+        const dt = clampDelta(delta);
+        const temp = simulationState.current.temp;
+
         if (coolantRef1.current) {
-            coolantRef1.current.time += delta;
+            coolantRef1.current.time += dt;
             coolantRef1.current.speed = THREE.MathUtils.mapLinear(temp, 30, 80, 0.5, 2.0);
         }
         if (coolantRef2.current) {
-            coolantRef2.current.time += delta;
+            coolantRef2.current.time += dt;
             coolantRef2.current.speed = THREE.MathUtils.mapLinear(temp, 30, 80, 0.5, 2.0);
         }
     });
@@ -229,17 +235,17 @@ export const PCCase = ({ onFocus, color = '#ff2a00' }: { onFocus?: (pos: THREE.V
                     </RoundedBox>
 
                     {/* Motherboard Component */}
-                    <Motherboard onFocus={onFocus} temp={temp} load={load} />
+                    <Motherboard onFocus={onFocus} simulationState={simulationState} />
 
                     {/* Sub-components mounted to Mobo */}
                     <group position={[0.2, 0.8, 0.1]}>
-                        <CPUCooler onFocus={onFocus} temp={temp} />
+                        <CPUCooler onFocus={onFocus} simulationState={simulationState} />
                     </group>
                     <group position={[0.8, 0.8, 0.1]}>
                         <RAMSticks onFocus={onFocus} />
                     </group>
                     <group position={[0, -0.6, 0.2]}>
-                        <GPU onFocus={onFocus} temp={temp} load={load} />
+                        <GPU onFocus={onFocus} simulationState={simulationState} />
                     </group>
                     <Cables />
                 </group>
@@ -252,17 +258,19 @@ export const PCCase = ({ onFocus, color = '#ff2a00' }: { onFocus?: (pos: THREE.V
                 {/* --- GROUP: COOLING LOOP --- */}
                 <group name="CoolingLoop">
                     {/* Radiator Mount (Left Side) */}
+                    {/* Radiator Mount (Left Side) */}
                     <group name="RadiatorMount" position={[-1.8, 0, 0.5]} rotation={[0, 0.3, 0]}>
                         <RoundedBox args={[1.4, 4.0, 0.3]} radius={0.05}>
                             <primitive object={radiatorMaterial} attach="material" />
                         </RoundedBox>
                         <group position={[0, 0, 0.16]}>
-                            <Fan position={[0, 1.2, 0]} rpm={1200} size={1.2} temp={temp} />
-                            <Fan position={[0, 0, 0]} rpm={1200} size={1.2} temp={temp} />
-                            <Fan position={[0, -1.2, 0]} rpm={1200} size={1.2} temp={temp} />
+                            <Fan position={[0, 1.2, 0]} rpm={1200} size={1.2} />
+                            <Fan position={[0, 0, 0]} rpm={1200} size={1.2} />
+                            <Fan position={[0, -1.2, 0]} rpm={1200} size={1.2} />
                         </group>
                     </group>
 
+                    {/* Reservoir Mount (Right Side) */}
                     {/* Reservoir Mount (Right Side) */}
                     <group name="ReservoirMount" position={[1.8, -1.0, 0.5]} rotation={[0, -0.3, 0]}>
                         <Cylinder args={[0.35, 0.35, 2.0, 16]} position={[0, 0.5, 0]}>
@@ -276,6 +284,7 @@ export const PCCase = ({ onFocus, color = '#ff2a00' }: { onFocus?: (pos: THREE.V
                         </Cylinder>
                     </group>
 
+                    {/* Tubing Routing */}
                     {/* Tubing Routing */}
                     <group name="Tubing">
                         {/* 1. Pump (Res Bottom) -> GPU In */}

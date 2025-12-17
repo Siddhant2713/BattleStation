@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Environment, CameraControls, ContactShadows, Float, SpotLight } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, Noise, DepthOfField } from '@react-three/postprocessing';
 import { LabEnvironment } from './LabEnvironment';
+import { clampDelta } from '../../utils/AnimationUtils';
 
 import { CorePedestal } from './CorePedestal';
 import { HologramOverlay } from './HologramOverlay';
@@ -73,12 +74,22 @@ export const DashboardScene = ({ cabinetId = 'ducati-monster' }: { cabinetId?: s
         }
     }, []);
 
-    // Slow Rotation Removed
-    // useFrame((state, delta) => {
-    //     if (pcGroupRef.current && !isInteracting) {
-    //         pcGroupRef.current.rotation.y += delta * 0.05; // Very slow rotation (approx 0.5 RPM)
-    //     }
-    // });
+    // Manual Levitation & Rotation
+    useFrame((state, delta) => {
+        const dt = clampDelta(delta);
+        const time = state.clock.elapsedTime;
+
+        if (pcGroupRef.current) {
+            // Complex Organic Levitation: Main Sine + Subtle HD noise (simulated by secondary sine)
+            const yOffset = Math.sin(time * 0.5) * 0.05 + Math.sin(time * 1.32) * 0.01;
+            pcGroupRef.current.position.y = 1.5 + yOffset;
+
+            // Very subtle rotation breathing
+            if (!isInteracting) {
+                pcGroupRef.current.rotation.y = Math.sin(time * 0.2) * 0.02;
+            }
+        }
+    });
 
     // Mock Temperature
     useEffect(() => {
@@ -112,8 +123,8 @@ export const DashboardScene = ({ cabinetId = 'ducati-monster' }: { cabinetId?: s
                 maxPolarAngle={Math.PI / 1.9}
                 minDistance={5}
                 maxDistance={30}
-                smoothTime={0.5}
-                draggingSmoothTime={0.2}
+                smoothTime={0.8} // Increased for weight
+                draggingSmoothTime={0.4} // Smoother dragging
             />
 
             {/* --- ENVIRONMENT & LIGHTING --- */}
@@ -144,34 +155,35 @@ export const DashboardScene = ({ cabinetId = 'ducati-monster' }: { cabinetId?: s
 
             {/* --- ACTORS --- */}
 
+            {/* --- ACTORS --- */}
+
             <group ref={pedestalRef}>
                 <CorePedestal />
-                {/* Reduced Levitation Height & Range */}
-                <Float speed={2} rotationIntensity={0} floatIntensity={0.5} floatingRange={[0.05, 0.1]}>
-                    <group
-                        ref={pcGroupRef}
-                        position={[0, 1.5, 0]}
-                        scale={0.7}
-                        onClick={() => setIsInteracting(true)}
-                    >
-                        <CabinetLoader cabinetId={cabinetId} onLoaded={() => { }} />
-                        <HologramOverlay
-                            visible={isInteracting || isWarning}
-                            label={isCritical ? "CRITICAL FAILURE" : "SYSTEM OPTIMAL"}
-                            stats={[
-                                { label: "CORE TEMP", value: `${temperature.toFixed(0)}°C` },
-                                { label: "INTEGRITY", value: "100%" }
-                            ]}
-                            position={[0, 2, 0]}
-                        />
-                    </group>
-                </Float>
+
+                {/* Manual Levitation Group */}
+                <group
+                    ref={pcGroupRef}
+                    position={[0, 1.5, 0]}
+                    scale={0.7}
+                    onClick={() => setIsInteracting(true)}
+                >
+                    <CabinetLoader cabinetId={cabinetId} onLoaded={() => { }} />
+                    <HologramOverlay
+                        visible={isInteracting || isWarning}
+                        label={isCritical ? "CRITICAL FAILURE" : "SYSTEM OPTIMAL"}
+                        stats={[
+                            { label: "CORE TEMP", value: `${temperature.toFixed(0)}°C` },
+                            { label: "INTEGRITY", value: "100%" }
+                        ]}
+                        position={[0, 2, 0]}
+                    />
+                </group>
             </group>
 
             {/* --- POST PROCESSING (Optimized) --- */}
-            <EffectComposer enableNormalPass={false}>
+            {/* <EffectComposer enableNormalPass={false}>
                 <Bloom luminanceThreshold={1.5} mipmapBlur intensity={0.3} radius={0.2} />
-            </EffectComposer>
+            </EffectComposer> */}
         </>
     );
 };

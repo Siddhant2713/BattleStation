@@ -8,15 +8,14 @@ export const SidebarCabinetSelector = ({ onSelect, selectedId }) => {
     const cabinets = getAllCabinets();
 
     return (
-        <motion.div
-            initial={{ x: -300 }}
-            animate={{ x: 0 }}
-            className="fixed left-0 top-24 bottom-0 z-40 flex"
-        >
-            {/* Sidebar Panel */}
+        <>
+            {/* Sidebar Panel - Optimized: Transform instead of Width */}
+            {/* Sidebar Panel - Optimized: Transform instead of Width */}
             <motion.div
-                animate={{ width: isOpen ? 320 : 0, opacity: isOpen ? 1 : 0 }}
-                className="h-full bg-black/80 backdrop-blur-xl border-r border-white/10 overflow-hidden flex flex-col"
+                initial={{ x: -320 }}
+                animate={{ x: isOpen ? 0 : -320 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }} // Snappy but smooth
+                className="w-80 h-full bg-black/80 backdrop-blur-xl border-r border-white/10 overflow-hidden flex flex-col fixed left-0 top-24 bottom-0 z-40"
             >
                 <div className="p-6 border-b border-white/10">
                     <h2 className="text-xl font-black brand-font italic flex items-center gap-2">
@@ -91,18 +90,22 @@ export const SidebarCabinetSelector = ({ onSelect, selectedId }) => {
                 </div>
             </motion.div>
 
-            {/* Toggle Button */}
-            <div className="h-full flex items-center">
+            {/* Toggle Button - Independent Floating Element */}
+            <motion.div
+                animate={{ x: isOpen ? 320 : 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="fixed top-1/2 -translate-y-1/2 left-0 z-50 pointer-events-auto"
+            >
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="w-6 h-12 bg-neon-red flex items-center justify-center hover:w-8 transition-all clip-path-polygon-[0_0,100%_10%,100%_90%,0_100%]"
+                    className="w-6 h-12 bg-neon-red flex items-center justify-center hover:w-8 transition-all clip-path-polygon-[0_0,100%_10%,100%_90%,0_100%] shadow-[0_0_15px_rgba(255,42,0,0.5)]"
                 >
                     <ChevronRight
                         size={16}
                         className={`text-black transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
                     />
                 </button>
-            </div>
-        </motion.div>
+            </motion.div>
+        </>
     );
 };

@@ -148,7 +148,13 @@ const InteractivePart = ({ children, onFocus, ...props }: any) => {
 
 // --- Main Components ---
 
-export const Motherboard = ({ onFocus, temp = 40, load = 0 }: any) => {
+// Update Props Interface
+interface SimulationProps {
+    onFocus?: (pos: THREE.Vector3) => void;
+    simulationState?: React.MutableRefObject<{ temp: number; load: number }>;
+}
+
+export const Motherboard = ({ onFocus, simulationState }: SimulationProps) => {
     return (
         <InteractivePart onFocus={onFocus} position={[0, 0, 0]}>
             <Detailed distances={[0, 15, 30]}>
@@ -267,11 +273,11 @@ const MotherboardLOD2 = ({ hovered }: any) => (
 );
 
 
-export const GPU = ({ onFocus, temp = 40, load = 0 }: any) => {
+export const GPU = ({ onFocus, simulationState }: SimulationProps) => {
     return (
         <InteractivePart onFocus={onFocus} position={[0, 0, 0]}>
             <Detailed distances={[0, 15, 30]}>
-                <GPULOD0 temp={temp} />
+                <GPULOD0 />
                 <GPULOD1 />
                 <GPULOD2 />
             </Detailed>
@@ -279,7 +285,7 @@ export const GPU = ({ onFocus, temp = 40, load = 0 }: any) => {
     );
 };
 
-const GPULOD0 = ({ temp }: any) => (
+const GPULOD0 = () => (
     <group>
         {/* PCB */}
         <mesh position={[0, 0, 0]}>
@@ -339,11 +345,15 @@ const GPULOD2 = () => (
     </group>
 );
 
-export const CPUCooler = ({ onFocus, temp = 40 }: any) => {
+export const CPUCooler = ({ onFocus, simulationState }: SimulationProps) => {
     const coolantRef = useRef<any>(null);
     useFrame((state, delta) => {
         if (coolantRef.current) {
-            coolantRef.current.time += delta;
+            // Use clamped delta for stability
+            const dt = Math.min(delta, 0.1);
+            coolantRef.current.time += dt;
+
+            const temp = simulationState?.current?.temp ?? 40;
             coolantRef.current.speed = THREE.MathUtils.mapLinear(temp, 30, 80, 0.5, 2.0);
         }
     });

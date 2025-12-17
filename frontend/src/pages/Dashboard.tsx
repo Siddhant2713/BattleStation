@@ -69,10 +69,9 @@ export const Dashboard = () => {
                 {/* 3D Scene */}
                 <div className="absolute inset-0 z-0">
                     <Canvas
-                        shadows={false}
-                        dpr={[1, 1.5]}
+                        shadows
                         camera={{ position: [4, 2, 5], fov: 45 }}
-                        gl={{ antialias: true, powerPreference: "high-performance" }}
+                        gl={{ antialias: true }}
                     >
                         <DashboardScene cabinetId={selectedCabinetId} />
                     </Canvas>
